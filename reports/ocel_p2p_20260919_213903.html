@@ -1,0 +1,1615 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>OCEL 对象中心流程分析报告(跨流程关系挖掘)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  background:#f5f7fa; color:#1f2937; line-height:1.6; }
+.container { max-width:1320px; margin:0 auto; padding:32px 24px; }
+header { background:linear-gradient(135deg,#0f172a 0%,#1e40af 100%); color:#fff;
+  padding:32px 24px; border-radius:12px; margin-bottom:24px; box-shadow:0 4px 20px rgba(15,23,42,.18); }
+header h1 { margin:0 0 8px; font-size:28px; }
+header .subtitle { opacity:.85; font-size:14px; }
+section { background:#fff; border-radius:12px; padding:24px; margin-bottom:20px; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+section h2 { margin:0 0 16px; font-size:20px; color:#0f172a; border-left:4px solid #1e40af; padding-left:12px; }
+section h3 { margin:20px 0 10px; font-size:16px; color:#374151; }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:16px; margin-bottom:20px; }
+.card { background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%); border-radius:10px; padding:18px; border:1px solid #bfdbfe; }
+.card .label { font-size:12px; color:#1e40af; text-transform:uppercase; letter-spacing:.5px; }
+.card .value { font-size:26px; font-weight:700; color:#1e3a8a; margin-top:6px; }
+.card .unit { font-size:14px; color:#1e40af; margin-left:4px; }
+.card.good { background:linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%); border-color:#bbf7d0; }
+.card.good .label { color:#15803d; } .card.good .value { color:#14532d; }
+.diagram-container { border:1px solid #e5e7eb; border-radius:8px; background:#fafafa; padding:12px; overflow:auto; max-height:720px; }
+.diagram-container svg { display:block; max-width:none; height:auto; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th,td { padding:8px 12px; text-align:left; border-bottom:1px solid #e5e7eb; }
+th { background:#f9fafb; color:#374151; font-weight:600; }
+tr:hover { background:#f9fafb; }
+.num { text-align:right; font-variant-numeric:tabular-nums; }
+.warning-box { background:#fef3c7; border-left:4px solid #f59e0b; padding:14px 18px; border-radius:4px; color:#78350f; margin:12px 0; }
+.info-box { background:#eff6ff; border-left:4px solid #3b82f6; padding:14px 18px; border-radius:4px; color:#1e3a8a; margin:12px 0; }
+.muted { color:#6b7280; font-size:13px; }
+.arrow { color:#1e40af; font-weight:700; }
+.tag { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:600;
+  background:#e0e7ff; color:#3730a3; margin-right:4px; }
+footer { text-align:center; color:#6b7280; font-size:12px; padding:24px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>OCEL 对象中心流程分析报告(跨流程关系挖掘)</h1>
+  <div class="subtitle">P2P 采购到付款(OCEL 2.0 · RWTH Aachen 官方合集,CC-BY-4.0) · 生成时间 2026-09-19 21:39:03</div>
+</header>
+
+<section>
+  <h2>1. OCEL 数据概览</h2>
+  <p class="muted">OCEL(Object-Centric Event Log)让一个事件可以同时关联多个对象。
+  与传统事件日志的关键差别是:对象之间的关联不会在"拍扁"成单流程时丢失,
+  因此可以挖掘"A 流程触发 B 流程"这类跨流程关系。</p>
+  <div class="cards">
+    <div class="card"><div class="label">事件数</div><div class="value">24,854</div></div>
+    <div class="card"><div class="label">对象数</div><div class="value">74,489</div></div>
+    <div class="card"><div class="label">事件-对象关联</div><div class="value">105,039</div></div>
+    <div class="card"><div class="label">事件类型</div><div class="value">32</div></div>
+    <div class="card"><div class="label">对象类型</div><div class="value">8</div></div>
+    <div class="card"><div class="label">平均对象/事件</div><div class="value">4.23</div></div>
+    <div class="card good"><div class="label">孤立事件</div><div class="value">0<span class="unit">(0.0%)</span></div></div>
+  </div>
+  <p class="muted">时间范围:1994-11-11 00:00:00+00:00 → 2020-06-04 00:00:00+00:00
+  (跨度 9,337 天)</p>
+  <div class="warning-box"><b>时间戳可靠性提示:</b> 本数据集绝对时间戳由模拟器生成(跨度 1994–2020,不合业务常理),且 24,854 个事件中仅 10,175 个唯一时间戳(约 59% 重复)。因此「触发次数」可靠,但时延数据不可用于 SLA 结论。</div>
+  <div class="info-box">
+    <b>为什么"孤立事件"是关键指标:</b> 孤立事件指不关联任何对象的事件。
+    如果这个比例高,说明数据虽然叫 OCEL,但对象关联是缺失的,
+    跨流程分析在结构上就无法成立。此数据集孤立事件为 <b>0</b>,
+    对象关联完整。
+  </div>
+</section>
+
+<section>
+  <h2>2. 对象类型概览</h2>
+  <table><thead><tr><th>对象类型</th><th>对象数</th><th>涉及事件</th><th>活动数</th><th>平均事件/对象</th><th>最大事件/对象</th></tr></thead><tbody><tr><td>EBELN_EBELP</td><td class="num">31,143</td><td class="num">20,517</td><td class="num">11</td><td class="num">1</td><td class="num">13</td></tr><tr><td>EBELN</td><td class="num">16,245</td><td class="num">20,516</td><td class="num">11</td><td class="num">1</td><td class="num">21</td></tr><tr><td>BELNR_EBELN_EBELP</td><td class="num">10,740</td><td class="num">4,224</td><td class="num">6</td><td class="num">1</td><td class="num">1</td></tr><tr><td>MBLNR_ZEILE</td><td class="num">6,951</td><td class="num">4,176</td><td class="num">22</td><td class="num">1</td><td class="num">1</td></tr><tr><td>BELNR</td><td class="num">4,225</td><td class="num">4,257</td><td class="num">8</td><td class="num">1</td><td class="num">8</td></tr><tr><td>MBLNR</td><td class="num">4,176</td><td class="num">4,176</td><td class="num">22</td><td class="num">1</td><td class="num">1</td></tr><tr><td>MATNR</td><td class="num">810</td><td class="num">8,219</td><td class="num">27</td><td class="num">19</td><td class="num">417</td></tr><tr><td>BANFN</td><td class="num">199</td><td class="num">200</td><td class="num">1</td><td class="num">1</td><td class="num">2</td></tr></tbody></table>
+</section>
+
+<section>
+  <h2>3. 对象交互图 —— 流程之间的"接缝"</h2>
+  <p>统计两种对象类型在同一个事件中共同出现的次数。共现越多,
+  说明这两个子流程耦合越紧、越需要在架构上一起考虑。</p>
+  <table><thead><tr><th>对象类型 A</th><th>对象类型 B</th><th>共同出现事件数</th><th>共同活动数</th></tr></thead><tbody><tr><td>EBELN</td><td>EBELN_EBELP</td><td class="num">20,512</td><td class="num">11</td></tr><tr><td>BELNR</td><td>BELNR_EBELN_EBELP</td><td class="num">4,224</td><td class="num">6</td></tr><tr><td>BELNR</td><td>EBELN_EBELP</td><td class="num">4,224</td><td class="num">6</td></tr><tr><td>BELNR_EBELN_EBELP</td><td>EBELN_EBELP</td><td class="num">4,224</td><td class="num">6</td></tr><tr><td>BELNR</td><td>EBELN</td><td class="num">4,219</td><td class="num">6</td></tr><tr><td>BELNR_EBELN_EBELP</td><td>EBELN</td><td class="num">4,219</td><td class="num">6</td></tr><tr><td>MATNR</td><td>MBLNR_ZEILE</td><td class="num">4,176</td><td class="num">22</td></tr><tr><td>MATNR</td><td>MBLNR</td><td class="num">4,176</td><td class="num">22</td></tr><tr><td>MBLNR</td><td>MBLNR_ZEILE</td><td class="num">4,176</td><td class="num">22</td></tr><tr><td>EBELN_EBELP</td><td>MATNR</td><td class="num">4,119</td><td class="num">9</td></tr><tr><td>EBELN</td><td>MATNR</td><td class="num">4,115</td><td class="num">9</td></tr><tr><td>BELNR_EBELN_EBELP</td><td>MATNR</td><td class="num">4,043</td><td class="num">5</td></tr><tr><td>BELNR</td><td>MATNR</td><td class="num">4,043</td><td class="num">5</td></tr><tr><td>EBELN</td><td>MBLNR</td><td class="num">76</td><td class="num">4</td></tr><tr><td>EBELN</td><td>MBLNR_ZEILE</td><td class="num">76</td><td class="num">4</td></tr></tbody></table>
+</section>
+
+<section>
+  <h2>4. 跨流程触发关系 —— "流程 A 触发流程 B"</h2>
+  <p>沿每个对象的时间线统计相邻活动转移,再按活动的"主导对象类型"
+  归类到子流程,筛出跨越子流程边界的转移。这就是跨流程触发关系。</p>
+  <table>
+    <thead><tr>
+      <th>源活动</th><th>源子流程</th><th></th><th>目标活动</th><th>目标子流程</th>
+      <th>触发次数</th><th>承载对象类型</th>
+    </tr></thead>
+    <tbody><tr><td>Create Purchase Order</td><td><span class="tag">EBELN_EBELP</span></td><td class="arrow">→</td><td>Enter Incoming Invoice</td><td><span class="tag">BELNR_EBELN_EBELP</span></td><td class="num">14,572</td><td class="muted">EBELN, EBELN_EBELP</td></tr><tr><td>Create Purchase Order</td><td><span class="tag">EBELN_EBELP</span></td><td class="arrow">→</td><td>Evaluated Receipt Settlement</td><td><span class="tag">BELNR</span></td><td class="num">94</td><td class="muted">EBELN, EBELN_EBELP</td></tr><tr><td>Create Purchase Order</td><td><span class="tag">EBELN_EBELP</span></td><td class="arrow">→</td><td>GR/IR account maintenance</td><td><span class="tag">BELNR_EBELN_EBELP</span></td><td class="num">65</td><td class="muted">EBELN, EBELN_EBELP</td></tr><tr><td>Enter Incoming Invoice</td><td><span class="tag">BELNR_EBELN_EBELP</span></td><td class="arrow">→</td><td>Evaluated Receipt Settlement</td><td><span class="tag">BELNR</span></td><td class="num">60</td><td class="muted">MATNR</td></tr><tr><td>Change Outbound Delivery</td><td><span class="tag">MBLNR_ZEILE</span></td><td class="arrow">→</td><td>Enter Incoming Invoice</td><td><span class="tag">BELNR_EBELN_EBELP</span></td><td class="num">44</td><td class="muted">MATNR</td></tr><tr><td>Change Outbound Delivery</td><td><span class="tag">MBLNR_ZEILE</span></td><td class="arrow">→</td><td>Post Goods Receipt for PO</td><td><span class="tag">EBELN_EBELP</span></td><td class="num">42</td><td class="muted">MATNR</td></tr><tr><td>Post Goods Receipt for PO</td><td><span class="tag">EBELN_EBELP</span></td><td class="arrow">→</td><td>Change Outbound Delivery</td><td><span class="tag">MBLNR_ZEILE</span></td><td class="num">41</td><td class="muted">MATNR</td></tr><tr><td>Post Goods Receipt for PO</td><td><span class="tag">EBELN_EBELP</span></td><td class="arrow">→</td><td>Enter Incoming Invoice</td><td><span class="tag">BELNR_EBELN_EBELP</span></td><td class="num">36</td><td class="muted">MATNR</td></tr><tr><td>Evaluated Receipt Settlement</td><td><span class="tag">BELNR</span></td><td class="arrow">→</td><td>Enter Incoming Invoice</td><td><span class="tag">BELNR_EBELN_EBELP</span></td><td class="num">30</td><td class="muted">MATNR</td></tr><tr><td>Enter Time Ticket</td><td><span class="tag">MATNR</span></td><td class="arrow">→</td><td>Goods Receipt for Production Order</td><td><span class="tag">MBLNR_ZEILE</span></td><td class="num">29</td><td class="muted">MATNR</td></tr><tr><td>Goods Withdrawal</td><td><span class="tag">MATNR</span></td><td class="arrow">→</td><td>Enter Incoming Invoice</td><td><span class="tag">BELNR_EBELN_EBELP</span></td><td class="num">25</td><td class="muted">MATNR</td></tr><tr><td>Change Outbound Delivery</td><td><span class="tag">MBLNR_ZEILE</span></td><td class="arrow">→</td><td>Enter Time Ticket</td><td><span class="tag">MATNR</span></td><td class="num">24</td><td class="muted">MATNR</td></tr><tr><td>Post Goods Receipt for PO</td><td><span class="tag">EBELN_EBELP</span></td><td class="arrow">→</td><td>Goods Withdrawal</td><td><span class="tag">MATNR</span></td><td class="num">20</td><td class="muted">MATNR</td></tr><tr><td>Create Purchase Order</td><td><span class="tag">EBELN_EBELP</span></td><td class="arrow">→</td><td>Park Invoice</td><td><span class="tag">BELNR_EBELN_EBELP</span></td><td class="num">19</td><td class="muted">EBELN, EBELN_EBELP</td></tr><tr><td>Goods Receipt for Production Order</td><td><span class="tag">MBLNR_ZEILE</span></td><td class="arrow">→</td><td>Enter Time Ticket</td><td><span class="tag">MATNR</span></td><td class="num">16</td><td class="muted">MATNR</td></tr><tr><td>Enter Time Ticket</td><td><span class="tag">MATNR</span></td><td class="arrow">→</td><td>Change Outbound Delivery</td><td><span class="tag">MBLNR_ZEILE</span></td><td class="num">15</td><td class="muted">MATNR</td></tr><tr><td>Goods Receipt for Production Order</td><td><span class="tag">MBLNR_ZEILE</span></td><td class="arrow">→</td><td>Goods Withdrawal</td><td><span class="tag">MATNR</span></td><td class="num">14</td><td class="muted">MATNR</td></tr><tr><td>Create Purchase Order</td><td><span class="tag">EBELN_EBELP</span></td><td class="arrow">→</td><td>Cancel Invoice Document</td><td><span class="tag">BELNR_EBELN_EBELP</span></td><td class="num">13</td><td class="muted">EBELN, EBELN_EBELP</td></tr><tr><td>Planning Table - Change</td><td><span class="tag">MATNR</span></td><td class="arrow">→</td><td>Post Goods Receipt for PO</td><td><span class="tag">EBELN_EBELP</span></td><td class="num">12</td><td class="muted">MATNR</td></tr><tr><td>Reverse Backflush (With ALV)</td><td><span class="tag">MATNR</span></td><td class="arrow">→</td><td>Change Outbound Delivery</td><td><span class="tag">MBLNR_ZEILE</span></td><td class="num">10</td><td class="muted">MATNR</td></tr></tbody>
+  </table>
+  <div class="info-box" style="margin-top:16px;">
+    <b>怎么读这张表:</b> 触发次数代表该跨流程流转在日志中出现的频次。
+    次数最高的那条通常是主干链路;次数适中但 <b>异常方向</b> 的条目
+    (比如"发票已录入却又有新订单创建")往往对应流程漏洞或越权操作,
+    值得单独查证。
+  </div>
+</section>
+
+<section>
+  <h2>5. 统计显著性验证 —— 哪些"触发"不是巧合</h2>
+  <p>第 4 节的触发次数只说明"发生了多少次",不说明"这个关系是否强于随机"。
+  本节用关联规则的度量体系回答后者:以<b>对象上的相邻事件对(转移)</b>为事务单位,
+  计算 confidence、baseline 与 <b>lift</b>,并用卡方检验 + BH 多重检验校正判显著性。</p>
+  <div class="cards">
+    <div class="card"><div class="label">检验规则数</div><div class="value">47</div></div>
+    <div class="card good"><div class="label">FDR 校正后显著</div><div class="value">46</div></div>
+    <div class="card"><div class="label">其中跨流程</div><div class="value">14</div></div>
+    <div class="card"><div class="label">最大 lift</div><div class="value">2640.12</div></div>
+  </div>
+
+  <div class="warning-box">
+    <b>lift 与 confidence 必须一起读,只看一个会得出错误结论。</b><br/>
+    度量定义:confidence = P(B 紧随 A | A 出现);baseline = P(B 作为后继);
+    <b>lift = confidence / baseline</b>。
+    confidence 高只说明 A 之后常接 B,但如果 B 本来就高频,baseline 也高,lift 会接近 1 ——
+    即 A 其实没有提供任何额外信息。<br/><br/>
+    <b>本数据集的实例:</b> <code>Create Purchase Order → Enter Incoming Invoice</code>
+    的 confidence 高达 <b>97.4%</b>,看起来是压倒性的主干链路;但 baseline 本身就有
+    <b>80.4%</b>,因此 lift 仅 <b>1.21</b> —— 创建采购订单几乎不提升"录入发票"出现的概率,
+    那个 14,572 的高计数是<b>体量驱动</b>的,不是特异性驱动的。
+  </div>
+
+  <h3>按 lift 排序 —— 最有信息量的跨流程关系</h3>
+  <p class="muted">lift 高说明该转移远高于随机基线。注意 lift 高而 n_ab 小的条目虽然统计确凿,
+  但绝对影响面有限;要结合下一张表一起判断。</p>
+  <table>
+    <thead><tr><th>源活动</th><th></th><th>目标活动</th><th>转移数</th>
+      <th>confidence</th><th>baseline</th><th>lift</th><th>lift 95% CI</th><th>校正后 p</th></tr></thead>
+    <tbody><tr><td>Single Process Order Confirmation </td><td class="arrow">→</td><td>Single Process Order Confirmation</td><td class="num">7</td><td class="num">0.778</td><td class="num">0.0003</td><td class="num"><b>2640.12</b></td><td class="muted">[nan, nan]</td><td class="muted"><1e-300</td></tr><tr><td>Backflush KANBAN Orders </td><td class="arrow">→</td><td>Backflush KANBAN Orders</td><td class="num">15</td><td class="num">0.750</td><td class="num">0.0005</td><td class="num"><b>1527.50</b></td><td class="muted">[nan, nan]</td><td class="muted"><1e-300</td></tr><tr><td>PM Order Collective Confirmation </td><td class="arrow">→</td><td>PM Order Collective Confirmation</td><td class="num">15</td><td class="num">0.789</td><td class="num">0.0006</td><td class="num"><b>1339.91</b></td><td class="muted">[nan, nan]</td><td class="muted"><1e-300</td></tr><tr><td>Post Document </td><td class="arrow">→</td><td>Post Document</td><td class="num">21</td><td class="num">0.677</td><td class="num">0.0007</td><td class="num"><b>940.69</b></td><td class="muted">[nan, nan]</td><td class="muted"><1e-300</td></tr><tr><td>Record usage decision </td><td class="arrow">→</td><td>Record usage decision</td><td class="num">22</td><td class="num">0.629</td><td class="num">0.0011</td><td class="num"><b>564.79</b></td><td class="muted">[nan, nan]</td><td class="muted"><1e-300</td></tr><tr><td>Collective Backflush </td><td class="arrow">→</td><td>Collective Backflush</td><td class="num">9</td><td class="num">0.265</td><td class="num">0.0006</td><td class="num"><b>475.69</b></td><td class="muted">[353.581, 639.974]</td><td class="muted"><1e-300</td></tr><tr><td>Enter PM Order Confirmation </td><td class="arrow">→</td><td>Enter PM Order Confirmation</td><td class="num">62</td><td class="num">0.816</td><td class="num">0.0024</td><td class="num"><b>336.79</b></td><td class="muted">[nan, nan]</td><td class="muted"><1e-300</td></tr><tr><td>Planning Table - Change </td><td class="arrow">→</td><td>Collective Backflush</td><td class="num">8</td><td class="num">0.186</td><td class="num">0.0006</td><td class="num"><b>334.34</b></td><td class="muted">[222.724, 501.88]</td><td class="muted"><1e-300</td></tr><tr><td>Enter Production order Confirmation </td><td class="arrow">→</td><td>Enter Production order Confirmation</td><td class="num">23</td><td class="num">0.404</td><td class="num">0.0013</td><td class="num"><b>316.08</b></td><td class="muted">[305.09, 327.47]</td><td class="muted"><1e-300</td></tr><tr><td>Planning Table - Change </td><td class="arrow">→</td><td>Planning Table - Change</td><td class="num">13</td><td class="num">0.302</td><td class="num">0.0011</td><td class="num"><b>263.89</b></td><td class="muted">[193.412, 360.042]</td><td class="muted"><1e-300</td></tr><tr><td>Collective Backflush </td><td class="arrow">→</td><td>Planning Table - Change</td><td class="num">10</td><td class="num">0.294</td><td class="num">0.0011</td><td class="num"><b>256.72</b></td><td class="muted">[171.757, 383.72]</td><td class="muted"><1e-300</td></tr><tr><td>Reverse Backflush (With ALV) </td><td class="arrow">→</td><td>Reverse Backflush (With ALV)</td><td class="num">67</td><td class="num">0.684</td><td class="num">0.0028</td><td class="num"><b>242.86</b></td><td class="muted">[nan, nan]</td><td class="muted"><1e-300</td></tr></tbody>
+  </table>
+
+  <h3>按发生量排序 —— 运营影响最大的关系</h3>
+  <p class="muted">n_ab 是实际发生的转移次数,代表一旦改动该环节会波及多少单据。</p>
+  <table>
+    <thead><tr><th>源活动</th><th></th><th>目标活动</th><th>转移数</th>
+      <th>confidence</th><th>baseline</th><th>lift</th><th>lift 95% CI</th><th>校正后 p</th></tr></thead>
+    <tbody><tr><td>Create Purchase Order <span class="tag">跨流程</span></td><td class="arrow">→</td><td>Enter Incoming Invoice</td><td class="num">14,572</td><td class="num">0.974</td><td class="num">0.8041</td><td class="num"><b>1.21</b></td><td class="muted">[nan, nan]</td><td class="muted"><1e-300</td></tr><tr><td>Enter Incoming Invoice </td><td class="arrow">→</td><td>Enter Incoming Invoice</td><td class="num">9,814</td><td class="num">0.989</td><td class="num">0.8041</td><td class="num"><b>1.23</b></td><td class="muted">[nan, nan]</td><td class="muted"><1e-300</td></tr><tr><td>Create Delivery </td><td class="arrow">→</td><td>Create Delivery</td><td class="num">2,742</td><td class="num">0.951</td><td class="num">0.0940</td><td class="num"><b>10.12</b></td><td class="muted">[nan, nan]</td><td class="muted"><1e-300</td></tr><tr><td>Change Outbound Delivery </td><td class="arrow">→</td><td>Change Outbound Delivery</td><td class="num">1,457</td><td class="num">0.865</td><td class="num">0.0547</td><td class="num"><b>15.82</b></td><td class="muted">[nan, nan]</td><td class="muted"><1e-300</td></tr><tr><td>Goods Receipt for Production Order </td><td class="arrow">→</td><td>Goods Receipt for Production Order</td><td class="num">145</td><td class="num">0.587</td><td class="num">0.0076</td><td class="num"><b>76.97</b></td><td class="muted">[nan, nan]</td><td class="muted"><1e-300</td></tr><tr><td>Create Purchase Order </td><td class="arrow">→</td><td>Post Goods Receipt for PO</td><td class="num">133</td><td class="num">0.009</td><td class="num">0.0068</td><td class="num"><b>1.31</b></td><td class="muted">[1.18, 1.445]</td><td class="muted">1.62e-05</td></tr><tr><td>Enter Time Ticket </td><td class="arrow">→</td><td>Enter Time Ticket</td><td class="num">86</td><td class="num">0.541</td><td class="num">0.0056</td><td class="num"><b>96.63</b></td><td class="muted">[nan, nan]</td><td class="muted"><1e-300</td></tr><tr><td>Reverse Backflush (With ALV) </td><td class="arrow">→</td><td>Reverse Backflush (With ALV)</td><td class="num">67</td><td class="num">0.684</td><td class="num">0.0028</td><td class="num"><b>242.86</b></td><td class="muted">[nan, nan]</td><td class="muted"><1e-300</td></tr><tr><td>Create Purchase Order <span class="tag">跨流程</span></td><td class="arrow">→</td><td>GR/IR account maintenance</td><td class="num">65</td><td class="num">0.004</td><td class="num">0.0024</td><td class="num"><b>1.79</b></td><td class="muted">[1.649, 1.951]</td><td class="muted">2.61e-11</td></tr><tr><td>Enter PM Order Confirmation </td><td class="arrow">→</td><td>Enter PM Order Confirmation</td><td class="num">62</td><td class="num">0.816</td><td class="num">0.0024</td><td class="num"><b>336.79</b></td><td class="muted">[nan, nan]</td><td class="muted"><1e-300</td></tr><tr><td>Create Purchase Order </td><td class="arrow">→</td><td>Create Purchase Order</td><td class="num">48</td><td class="num">0.003</td><td class="num">0.0016</td><td class="num"><b>2.04</b></td><td class="muted">[nan, nan]</td><td class="muted">1.84e-12</td></tr><tr><td>Change Outbound Delivery <span class="tag">跨流程</span></td><td class="arrow">→</td><td>Post Goods Receipt for PO</td><td class="num">42</td><td class="num">0.025</td><td class="num">0.0068</td><td class="num"><b>3.66</b></td><td class="muted">[2.807, 4.78]</td><td class="muted">1.69e-20</td></tr></tbody>
+  </table>
+
+  <h3>互相触发对 —— 返工环的信号</h3>
+  <p>A→B 与 B→A 双双显著时,两者互为驱动,这通常不是干净的"流程 A 触发流程 B",
+  而是<b>返工环</b>:A 引发返工引出 B,B 又反过来引发 A。纯频次视角看不出这种结构,
+  必须两个方向都做检验才会暴露。</p>
+  <table>
+    <thead><tr><th>活动 A</th><th></th><th>活动 B</th>
+      <th>lift(A→B)</th><th>lift(B→A)</th><th>转移数 A→B / B→A</th></tr></thead>
+    <tbody><tr><td>Collective Backflush</td><td style="text-align:center">↔</td><td>Planning Table - Change</td><td class="num">256.72</td><td class="num">334.34</td><td class="num">10 / 8</td></tr><tr><td>Planning Table - Change</td><td style="text-align:center">↔</td><td>Reverse Backflush (With ALV)</td><td class="num">66.09</td><td class="num">89.07</td><td class="num">8 / 10</td></tr><tr><td>Enter Production order Confirmation</td><td style="text-align:center">↔</td><td>Enter Time Ticket</td><td class="num">68.95</td><td class="num">49.27</td><td class="num">22 / 10</td></tr><tr><td>Enter Time Ticket</td><td style="text-align:center">↔</td><td>Goods Receipt for Production Order</td><td class="num">23.91</td><td class="num">11.57</td><td class="num">29 / 16</td></tr><tr><td>Change Outbound Delivery</td><td style="text-align:center">↔</td><td>Post Goods Receipt for PO</td><td class="num">3.66</td><td class="num">7.35</td><td class="num">42 / 41</td></tr><tr><td>Change Outbound Delivery</td><td style="text-align:center">↔</td><td>Enter Time Ticket</td><td class="num">2.55</td><td class="num">1.73</td><td class="num">24 / 15</td></tr><tr><td>Change Outbound Delivery</td><td style="text-align:center">↔</td><td>Goods Receipt for Production Order</td><td class="num">1.71</td><td class="num">2.52</td><td class="num">22 / 34</td></tr></tbody>
+  </table>
+</section>
+
+<section>
+  <h2>6. 桥接活动 —— 把多个流程串起来的节点</h2>
+  <p>一次事件关联多种对象类型的活动。桥接评分 = (关联对象类型数 − 1) × 事件数。
+  这些活动是流程交接点,改动它们会同时影响多条流程链。</p>
+  <table><thead><tr><th>活动</th><th>关联对象类型数</th><th>事件数</th><th>桥接评分</th></tr></thead><tbody><tr><td>Enter Incoming Invoice</td><td class="num">5</td><td class="num">4,125</td><td class="num">16,500</td></tr><tr><td>Create Purchase Order</td><td class="num">2</td><td class="num">16,221</td><td class="num">16,221</td></tr><tr><td>Create Delivery</td><td class="num">3</td><td class="num">2,839</td><td class="num">5,678</td></tr><tr><td>Change Outbound Delivery</td><td class="num">5</td><td class="num">733</td><td class="num">2,932</td></tr><tr><td>Goods Receipt for Production Order</td><td class="num">3</td><td class="num">260</td><td class="num">520</td></tr><tr><td>Evaluated Receipt Settlement</td><td class="num">5</td><td class="num">64</td><td class="num">256</td></tr><tr><td>Enter Time Ticket</td><td class="num">3</td><td class="num">100</td><td class="num">200</td></tr><tr><td>Enter PM Order Confirmation</td><td class="num">3</td><td class="num">79</td><td class="num">158</td></tr><tr><td>Record usage decision</td><td class="num">5</td><td class="num">36</td><td class="num">144</td></tr><tr><td>Post Goods Receipt for PO</td><td class="num">5</td><td class="num">35</td><td class="num">140</td></tr><tr><td>Cancel Invoice Document</td><td class="num">5</td><td class="num">13</td><td class="num">52</td></tr><tr><td>Park Invoice</td><td class="num">5</td><td class="num">12</td><td class="num">48</td></tr></tbody></table>
+</section>
+
+<section>
+  <h2>7. 对象生命周期边界</h2>
+  <table><thead><tr><th>对象类型</th><th>对象数</th><th>平均事件数</th><th>主要起始活动</th><th>主要结束活动</th></tr></thead><tbody><tr><td>EBELN_EBELP</td><td class="num">31,143</td><td class="num">1</td><td>Create Purchase Order</td><td>Create Purchase Order</td></tr><tr><td>EBELN</td><td class="num">16,245</td><td class="num">1</td><td>Create Purchase Order</td><td>Create Purchase Order</td></tr><tr><td>BELNR_EBELN_EBELP</td><td class="num">10,740</td><td class="num">1</td><td>Enter Incoming Invoice</td><td>Enter Incoming Invoice</td></tr><tr><td>MBLNR_ZEILE</td><td class="num">6,951</td><td class="num">1</td><td>Create Delivery</td><td>Create Delivery</td></tr><tr><td>BELNR</td><td class="num">4,225</td><td class="num">1</td><td>Enter Incoming Invoice</td><td>Enter Incoming Invoice</td></tr><tr><td>MBLNR</td><td class="num">4,176</td><td class="num">1</td><td>Create Delivery</td><td>Create Delivery</td></tr><tr><td>MATNR</td><td class="num">810</td><td class="num">19</td><td>Enter Incoming Invoice</td><td>Enter Incoming Invoice</td></tr><tr><td>BANFN</td><td class="num">199</td><td class="num">1</td><td>Create Purchase Requisition</td><td>Create Purchase Requisition</td></tr></tbody></table>
+</section>
+
+<section>
+  <h2>8. 对象中心流程发现(OCPM)</h2>
+  <p>把 OCEL 按对象类型展开,每种对象类型得到一条独立的流程视图。
+  这是 OCPM 相比传统流程挖掘最实用的产出:采购订单和发票各自的生命周期
+  不再被"拍扁"混杂在一起。</p>
+
+  <h3>各对象类型的流程复杂度</h3>
+  <table><thead><tr><th>对象类型</th><th>活动数</th><th>流转边数</th><th>事件数</th><th>主要起始活动</th><th>主要结束活动</th></tr></thead><tbody><tr><td>EBELN_EBELP</td><td class="num">11</td><td class="num">19</td><td class="num">20,517</td><td>Create Purchase Order</td><td>Create Purchase Order</td></tr><tr><td>EBELN</td><td class="num">11</td><td class="num">19</td><td class="num">20,516</td><td>Create Purchase Order</td><td>Create Purchase Order</td></tr><tr><td>MATNR</td><td class="num">27</td><td class="num">124</td><td class="num">8,219</td><td>Enter Incoming Invoice</td><td>Enter Incoming Invoice</td></tr><tr><td>BELNR</td><td class="num">8</td><td class="num">4</td><td class="num">4,257</td><td>Enter Incoming Invoice</td><td>Enter Incoming Invoice</td></tr><tr><td>BELNR_EBELN_EBELP</td><td class="num">6</td><td class="num">0</td><td class="num">4,224</td><td>Enter Incoming Invoice</td><td>Enter Incoming Invoice</td></tr><tr><td>MBLNR</td><td class="num">22</td><td class="num">0</td><td class="num">4,176</td><td>Create Delivery</td><td>Create Delivery</td></tr><tr><td>MBLNR_ZEILE</td><td class="num">22</td><td class="num">0</td><td class="num">4,176</td><td>Create Delivery</td><td>Create Delivery</td></tr><tr><td>BANFN</td><td class="num">1</td><td class="num">1</td><td class="num">200</td><td>Create Purchase Requisition</td><td>Create Purchase Requisition</td></tr></tbody></table>
+
+  <h3>对象类型 <code>EBELN_EBELP</code> 的流程<span class="muted"> · 11 个活动</span></h3><div class="diagram-container"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 2.43.0 (0)
+ -->
+<!-- Title: dfg_EBELN_EBELP Pages: 1 -->
+<svg width="752pt" height="724pt"
+ viewBox="0.00 0.00 751.80 723.80" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(14.4 709.4)">
+<title>dfg_EBELN_EBELP</title>
+<!-- n0 -->
+<g id="node1" class="node">
+<title>n0</title>
+<path fill="#1e40af" stroke="#1e40af" stroke-width="1.2" d="M163.5,-337C163.5,-337 46.5,-337 46.5,-337 40.5,-337 34.5,-331 34.5,-325 34.5,-325 34.5,-313 34.5,-313 34.5,-307 40.5,-301 46.5,-301 46.5,-301 163.5,-301 163.5,-301 169.5,-301 175.5,-307 175.5,-313 175.5,-313 175.5,-325 175.5,-325 175.5,-331 169.5,-337 163.5,-337"/>
+<text text-anchor="middle" x="105" y="-322.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#ffffff">Create Purchase Order</text>
+<text text-anchor="middle" x="105" y="-310.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#ffffff">(16,217)</text>
+</g>
+<!-- n0&#45;&gt;n0 -->
+<g id="edge16" class="edge">
+<title>n0&#45;&gt;n0</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M80.18,-337.33C70.9,-351.52 79.17,-366 105,-366 124.98,-366 134.45,-357.34 133.42,-346.85"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="136.63,-345.44 129.82,-337.33 130.09,-347.92 136.63,-345.44"/>
+<text text-anchor="middle" x="105" y="-368.8" font-family="Helvetica,sans-Serif" font-size="9.00">48</text>
+</g>
+<!-- n1 -->
+<g id="node2" class="node">
+<title>n1</title>
+<path fill="#93c5fd" stroke="#1e40af" stroke-width="1.2" d="M451.5,-546C451.5,-546 335.5,-546 335.5,-546 329.5,-546 323.5,-540 323.5,-534 323.5,-534 323.5,-522 323.5,-522 323.5,-516 329.5,-510 335.5,-510 335.5,-510 451.5,-510 451.5,-510 457.5,-510 463.5,-516 463.5,-522 463.5,-522 463.5,-534 463.5,-534 463.5,-540 457.5,-546 451.5,-546"/>
+<text text-anchor="middle" x="393.5" y="-531.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Enter Incoming Invoice</text>
+<text text-anchor="middle" x="393.5" y="-519.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(4,124)</text>
+</g>
+<!-- n0&#45;&gt;n1 -->
+<g id="edge7" class="edge">
+<title>n0&#45;&gt;n1</title>
+<path fill="none" stroke="#64748b" stroke-width="3" d="M146.99,-337C167.58,-347.46 191.93,-362.11 210,-380 230.26,-400.06 223.01,-414.68 243,-435 272.08,-464.55 312.3,-488.89 343.7,-505.25"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="3" points="342.23,-508.42 352.72,-509.85 345.41,-502.19 342.23,-508.42"/>
+<text text-anchor="middle" x="257" y="-459.8" font-family="Helvetica,sans-Serif" font-size="9.00">4,065</text>
+</g>
+<!-- n2 -->
+<g id="node3" class="node">
+<title>n2</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M471,-259C471,-259 316,-259 316,-259 310,-259 304,-253 304,-247 304,-247 304,-235 304,-235 304,-229 310,-223 316,-223 316,-223 471,-223 471,-223 477,-223 483,-229 483,-235 483,-235 483,-247 483,-247 483,-253 477,-259 471,-259"/>
+<text text-anchor="middle" x="393.5" y="-244.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Evaluated Receipt Settlement</text>
+<text text-anchor="middle" x="393.5" y="-232.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(64)</text>
+</g>
+<!-- n0&#45;&gt;n2 -->
+<g id="edge8" class="edge">
+<title>n0&#45;&gt;n2</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M172.45,-300.91C215.42,-289.21 271.47,-273.95 316.25,-261.76"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="317.19,-265.13 325.92,-259.13 315.35,-258.38 317.19,-265.13"/>
+<text text-anchor="middle" x="257" y="-282.8" font-family="Helvetica,sans-Serif" font-size="9.00">62</text>
+</g>
+<!-- n3 -->
+<g id="node4" class="node">
+<title>n3</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M461,-194C461,-194 326,-194 326,-194 320,-194 314,-188 314,-182 314,-182 314,-170 314,-170 314,-164 320,-158 326,-158 326,-158 461,-158 461,-158 467,-158 473,-164 473,-170 473,-170 473,-182 473,-182 473,-188 467,-194 461,-194"/>
+<text text-anchor="middle" x="393.5" y="-179.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Post Goods Receipt for PO</text>
+<text text-anchor="middle" x="393.5" y="-167.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(35)</text>
+</g>
+<!-- n0&#45;&gt;n3 -->
+<g id="edge4" class="edge">
+<title>n0&#45;&gt;n3</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M134.74,-300.91C172.58,-277.55 241.64,-236.52 304,-208 311.88,-204.4 320.29,-200.91 328.68,-197.65"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="330,-200.89 338.11,-194.07 327.52,-194.35 330,-200.89"/>
+<text text-anchor="middle" x="257" y="-237.8" font-family="Helvetica,sans-Serif" font-size="9.00">34</text>
+</g>
+<!-- n4 -->
+<g id="node5" class="node">
+<title>n4</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M463,-101C463,-101 324,-101 324,-101 318,-101 312,-95 312,-89 312,-89 312,-77 312,-77 312,-71 318,-65 324,-65 324,-65 463,-65 463,-65 469,-65 475,-71 475,-77 475,-77 475,-89 475,-89 475,-95 469,-101 463,-101"/>
+<text text-anchor="middle" x="393.5" y="-86.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Change Outbound Delivery</text>
+<text text-anchor="middle" x="393.5" y="-74.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(31)</text>
+</g>
+<!-- n0&#45;&gt;n4 -->
+<g id="edge1" class="edge">
+<title>n0&#45;&gt;n4</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M124.67,-300.9C158.97,-267.99 234.85,-196.8 304,-143 320.32,-130.3 339.19,-117.3 355.3,-106.66"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="357.49,-109.41 363.94,-101 353.65,-103.55 357.49,-109.41"/>
+<text text-anchor="middle" x="257" y="-192.8" font-family="Helvetica,sans-Serif" font-size="9.00">3</text>
+</g>
+<!-- n5 -->
+<g id="node6" class="node">
+<title>n5</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M704.5,-656C704.5,-656 574.5,-656 574.5,-656 568.5,-656 562.5,-650 562.5,-644 562.5,-644 562.5,-632 562.5,-632 562.5,-626 568.5,-620 574.5,-620 574.5,-620 704.5,-620 704.5,-620 710.5,-620 716.5,-626 716.5,-632 716.5,-632 716.5,-644 716.5,-644 716.5,-650 710.5,-656 704.5,-656"/>
+<text text-anchor="middle" x="639.5" y="-641.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Cancel Invoice Document</text>
+<text text-anchor="middle" x="639.5" y="-629.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(13)</text>
+</g>
+<!-- n0&#45;&gt;n5 -->
+<g id="edge6" class="edge">
+<title>n0&#45;&gt;n5</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M151.7,-337.09C171.96,-347.1 194.63,-361.34 210,-380 238.15,-414.18 225.24,-433.44 243,-474 266.2,-527 257.03,-555.23 304,-589 376.02,-640.79 479.6,-648.5 552.36,-646.14"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="552.57,-649.63 562.42,-645.74 552.29,-642.64 552.57,-649.63"/>
+<text text-anchor="middle" x="393.5" y="-646.8" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n6 -->
+<g id="node7" class="node">
+<title>n6</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M668,-524C668,-524 611,-524 611,-524 605,-524 599,-518 599,-512 599,-512 599,-500 599,-500 599,-494 605,-488 611,-488 611,-488 668,-488 668,-488 674,-488 680,-494 680,-500 680,-500 680,-512 680,-512 680,-518 674,-524 668,-524"/>
+<text text-anchor="middle" x="639.5" y="-509.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Park Invoice</text>
+<text text-anchor="middle" x="639.5" y="-497.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(12)</text>
+</g>
+<!-- n0&#45;&gt;n6 -->
+<g id="edge18" class="edge">
+<title>n0&#45;&gt;n6</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M165.32,-337.1C263.74,-367.3 456.55,-427.18 523,-453 546.47,-462.12 571.96,-473.64 593.02,-483.61"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="591.52,-486.77 602.05,-487.92 594.53,-480.45 591.52,-486.77"/>
+<text text-anchor="middle" x="393.5" y="-439.8" font-family="Helvetica,sans-Serif" font-size="9.00">11</text>
+</g>
+<!-- n8 -->
+<g id="node9" class="node">
+<title>n8</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M711,-411C711,-411 568,-411 568,-411 562,-411 556,-405 556,-399 556,-399 556,-387 556,-387 556,-381 562,-375 568,-375 568,-375 711,-375 711,-375 717,-375 723,-381 723,-387 723,-387 723,-399 723,-399 723,-405 717,-411 711,-411"/>
+<text text-anchor="middle" x="639.5" y="-396.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">GR/IR account maintenance</text>
+<text text-anchor="middle" x="639.5" y="-384.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(7)</text>
+</g>
+<!-- n0&#45;&gt;n8 -->
+<g id="edge13" class="edge">
+<title>n0&#45;&gt;n8</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M175.6,-327.04C251.33,-335.97 375.95,-351.24 483,-367 503.36,-370 525.18,-373.48 545.84,-376.9"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="545.44,-380.38 555.88,-378.57 546.59,-373.47 545.44,-380.38"/>
+<text text-anchor="middle" x="393.5" y="-369.8" font-family="Helvetica,sans-Serif" font-size="9.00">31</text>
+</g>
+<!-- n9 -->
+<g id="node10" class="node">
+<title>n9</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M444.5,-36C444.5,-36 342.5,-36 342.5,-36 336.5,-36 330.5,-30 330.5,-24 330.5,-24 330.5,-12 330.5,-12 330.5,-6 336.5,0 342.5,0 342.5,0 444.5,0 444.5,0 450.5,0 456.5,-6 456.5,-12 456.5,-12 456.5,-24 456.5,-24 456.5,-30 450.5,-36 444.5,-36"/>
+<text text-anchor="middle" x="393.5" y="-21.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Settle Invoicing Plan</text>
+<text text-anchor="middle" x="393.5" y="-9.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(4)</text>
+</g>
+<!-- n0&#45;&gt;n9 -->
+<g id="edge5" class="edge">
+<title>n0&#45;&gt;n9</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M114.59,-300.76C138.07,-252.74 208.07,-121.67 304,-50 309.15,-46.15 314.82,-42.73 320.71,-39.69"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="322.58,-42.68 330.12,-35.23 319.58,-36.35 322.58,-42.68"/>
+<text text-anchor="middle" x="257" y="-108.8" font-family="Helvetica,sans-Serif" font-size="9.00">4</text>
+</g>
+<!-- n1&#45;&gt;n1 -->
+<g id="edge12" class="edge">
+<title>n1&#45;&gt;n1</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M372.93,-546.33C365.23,-560.52 372.09,-575 393.5,-575 409.89,-575 417.75,-566.51 417.09,-556.17"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="420.35,-554.87 414.07,-546.33 413.66,-556.92 420.35,-554.87"/>
+<text text-anchor="middle" x="393.5" y="-577.8" font-family="Helvetica,sans-Serif" font-size="9.00">48</text>
+</g>
+<!-- n1&#45;&gt;n5 -->
+<g id="edge9" class="edge">
+<title>n1&#45;&gt;n5</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M418.4,-546.23C442.06,-563.52 479.88,-589.13 516,-605 527.65,-610.12 540.28,-614.61 552.86,-618.49"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="551.86,-621.85 562.44,-621.34 553.86,-615.14 551.86,-621.85"/>
+<text text-anchor="middle" x="519.5" y="-609.8" font-family="Helvetica,sans-Serif" font-size="9.00">9</text>
+</g>
+<!-- n1&#45;&gt;n6 -->
+<g id="edge17" class="edge">
+<title>n1&#45;&gt;n6</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M463.6,-513.28C480.65,-510.26 498.92,-507.53 516,-506 539.86,-503.86 566.45,-503.6 588.74,-503.98"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="588.9,-507.49 598.97,-504.21 589.05,-500.49 588.9,-507.49"/>
+<text text-anchor="middle" x="519.5" y="-508.8" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n1&#45;&gt;n8 -->
+<g id="edge14" class="edge">
+<title>n1&#45;&gt;n8</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M427.15,-509.93C470.95,-485.7 548.75,-442.66 596.76,-416.1"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="598.59,-419.08 605.65,-411.18 595.21,-412.95 598.59,-419.08"/>
+<text text-anchor="middle" x="519.5" y="-462.8" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n2&#45;&gt;n2 -->
+<g id="edge11" class="edge">
+<title>n2&#45;&gt;n2</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M372.93,-259.33C365.23,-273.52 372.09,-288 393.5,-288 409.89,-288 417.75,-279.51 417.09,-269.17"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="420.35,-267.87 414.07,-259.33 413.66,-269.92 420.35,-267.87"/>
+<text text-anchor="middle" x="393.5" y="-290.8" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n4&#45;&gt;n4 -->
+<g id="edge2" class="edge">
+<title>n4&#45;&gt;n4</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M372.93,-101.33C365.23,-115.52 372.09,-130 393.5,-130 409.89,-130 417.75,-121.51 417.09,-111.17"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="420.35,-109.87 414.07,-101.33 413.66,-111.92 420.35,-109.87"/>
+<text text-anchor="middle" x="393.5" y="-132.8" font-family="Helvetica,sans-Serif" font-size="9.00">14</text>
+</g>
+<!-- n5&#45;&gt;n1 -->
+<g id="edge10" class="edge">
+<title>n5&#45;&gt;n1</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M598.46,-619.95C556.17,-600.88 489.43,-570.8 443.9,-550.27"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="445.07,-546.96 434.52,-546.04 442.2,-553.34 445.07,-546.96"/>
+<text text-anchor="middle" x="519.5" y="-585.8" font-family="Helvetica,sans-Serif" font-size="9.00">3</text>
+</g>
+<!-- n5&#45;&gt;n5 -->
+<g id="edge15" class="edge">
+<title>n5&#45;&gt;n5</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M620.23,-656.33C613.03,-670.52 619.45,-685 639.5,-685 654.85,-685 662.21,-676.51 661.59,-666.17"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="664.89,-664.98 658.77,-656.33 658.16,-666.91 664.89,-664.98"/>
+<text text-anchor="middle" x="639.5" y="-687.8" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n6&#45;&gt;n1 -->
+<g id="edge19" class="edge">
+<title>n6&#45;&gt;n1</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M598.95,-509.86C576.65,-512.01 548.28,-514.71 523,-517 507.03,-518.44 489.93,-519.94 473.59,-521.35"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="473.2,-517.87 463.53,-522.21 473.8,-524.84 473.2,-517.87"/>
+<text text-anchor="middle" x="519.5" y="-519.8" font-family="Helvetica,sans-Serif" font-size="9.00">5</text>
+</g>
+<!-- n7 -->
+<g id="node8" class="node">
+<title>n7</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M162,-430C162,-430 48,-430 48,-430 42,-430 36,-424 36,-418 36,-418 36,-406 36,-406 36,-400 42,-394 48,-394 48,-394 162,-394 162,-394 168,-394 174,-400 174,-406 174,-406 174,-418 174,-418 174,-424 168,-430 162,-430"/>
+<text text-anchor="middle" x="105" y="-415.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Record usage decision</text>
+<text text-anchor="middle" x="105" y="-403.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(8)</text>
+</g>
+<!-- n7&#45;&gt;n7 -->
+<g id="edge3" class="edge">
+<title>n7&#45;&gt;n7</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M80.18,-430.33C70.9,-444.52 79.17,-459 105,-459 124.98,-459 134.45,-450.34 133.42,-439.85"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="136.63,-438.44 129.82,-430.33 130.09,-440.92 136.63,-438.44"/>
+<text text-anchor="middle" x="105" y="-461.8" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n10 -->
+<g id="node11" class="node">
+<title>n10</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M198,-523C198,-523 12,-523 12,-523 6,-523 0,-517 0,-511 0,-511 0,-499 0,-499 0,-493 6,-487 12,-487 12,-487 198,-487 198,-487 204,-487 210,-493 210,-499 210,-499 210,-511 210,-511 210,-517 204,-523 198,-523"/>
+<text text-anchor="middle" x="105" y="-508.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Change usage decision with history</text>
+<text text-anchor="middle" x="105" y="-496.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(2)</text>
+</g>
+</g>
+</svg>
+</div><h3>对象类型 <code>MATNR</code> 的流程<span class="muted"> · 27 个活动</span></h3><div class="diagram-container"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 2.43.0 (0)
+ -->
+<!-- Title: dfg_MATNR Pages: 1 -->
+<svg width="3695pt" height="2214pt"
+ viewBox="0.00 0.00 3694.80 2213.91" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(14.4 2199.51)">
+<title>dfg_MATNR</title>
+<!-- n0 -->
+<g id="node1" class="node">
+<title>n0</title>
+<path fill="#1e40af" stroke="#1e40af" stroke-width="1.2" d="M3396,-1713.11C3396,-1713.11 3280,-1713.11 3280,-1713.11 3274,-1713.11 3268,-1707.11 3268,-1701.11 3268,-1701.11 3268,-1689.11 3268,-1689.11 3268,-1683.11 3274,-1677.11 3280,-1677.11 3280,-1677.11 3396,-1677.11 3396,-1677.11 3402,-1677.11 3408,-1683.11 3408,-1689.11 3408,-1689.11 3408,-1701.11 3408,-1701.11 3408,-1707.11 3402,-1713.11 3396,-1713.11"/>
+<text text-anchor="middle" x="3338" y="-1698.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#ffffff">Enter Incoming Invoice</text>
+<text text-anchor="middle" x="3338" y="-1686.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#ffffff">(3,958)</text>
+</g>
+<!-- n0&#45;&gt;n0 -->
+<g id="edge105" class="edge">
+<title>n0&#45;&gt;n0</title>
+<path fill="none" stroke="#94a3b8" stroke-width="3" stroke-dasharray="5,2" d="M3320.69,-1713.44C3314.22,-1727.63 3319.99,-1742.11 3338,-1742.11 3351.79,-1742.11 3358.4,-1733.62 3357.84,-1723.28"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="3" points="3361.19,-1722.25 3355.31,-1713.44 3354.41,-1724 3361.19,-1722.25"/>
+<text text-anchor="middle" x="3338" y="-1744.91" font-family="Helvetica,sans-Serif" font-size="9.00">4,102</text>
+</g>
+<!-- n6 -->
+<g id="node7" class="node">
+<title>n6</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M3654,-1889.11C3654,-1889.11 3499,-1889.11 3499,-1889.11 3493,-1889.11 3487,-1883.11 3487,-1877.11 3487,-1877.11 3487,-1865.11 3487,-1865.11 3487,-1859.11 3493,-1853.11 3499,-1853.11 3499,-1853.11 3654,-1853.11 3654,-1853.11 3660,-1853.11 3666,-1859.11 3666,-1865.11 3666,-1865.11 3666,-1877.11 3666,-1877.11 3666,-1883.11 3660,-1889.11 3654,-1889.11"/>
+<text text-anchor="middle" x="3576.5" y="-1874.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Evaluated Receipt Settlement</text>
+<text text-anchor="middle" x="3576.5" y="-1862.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(61)</text>
+</g>
+<!-- n0&#45;&gt;n6 -->
+<g id="edge116" class="edge">
+<title>n0&#45;&gt;n6</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M3346.72,-1713.21C3360.78,-1743.89 3393.55,-1805.93 3441,-1838.11 3451.86,-1845.47 3464.21,-1851.2 3476.91,-1855.65"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3476.08,-1859.06 3486.67,-1858.81 3478.24,-1852.4 3476.08,-1859.06"/>
+<text text-anchor="middle" x="3447.5" y="-1847.91" font-family="Helvetica,sans-Serif" font-size="9.00">60</text>
+</g>
+<!-- n12 -->
+<g id="node13" class="node">
+<title>n12</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M3641.5,-1792.11C3641.5,-1792.11 3511.5,-1792.11 3511.5,-1792.11 3505.5,-1792.11 3499.5,-1786.11 3499.5,-1780.11 3499.5,-1780.11 3499.5,-1768.11 3499.5,-1768.11 3499.5,-1762.11 3505.5,-1756.11 3511.5,-1756.11 3511.5,-1756.11 3641.5,-1756.11 3641.5,-1756.11 3647.5,-1756.11 3653.5,-1762.11 3653.5,-1768.11 3653.5,-1768.11 3653.5,-1780.11 3653.5,-1780.11 3653.5,-1786.11 3647.5,-1792.11 3641.5,-1792.11"/>
+<text text-anchor="middle" x="3576.5" y="-1777.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Cancel Invoice Document</text>
+<text text-anchor="middle" x="3576.5" y="-1765.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(9)</text>
+</g>
+<!-- n0&#45;&gt;n12 -->
+<g id="edge113" class="edge">
+<title>n0&#45;&gt;n12</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M3392.96,-1713.13C3428.25,-1724.92 3474.52,-1740.38 3511.64,-1752.78"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3510.77,-1756.17 3521.36,-1756.02 3512.99,-1749.54 3510.77,-1756.17"/>
+<text text-anchor="middle" x="3447.5" y="-1734.91" font-family="Helvetica,sans-Serif" font-size="9.00">6</text>
+</g>
+<!-- n14 -->
+<g id="node15" class="node">
+<title>n14</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M3605,-1692.11C3605,-1692.11 3548,-1692.11 3548,-1692.11 3542,-1692.11 3536,-1686.11 3536,-1680.11 3536,-1680.11 3536,-1668.11 3536,-1668.11 3536,-1662.11 3542,-1656.11 3548,-1656.11 3548,-1656.11 3605,-1656.11 3605,-1656.11 3611,-1656.11 3617,-1662.11 3617,-1668.11 3617,-1668.11 3617,-1680.11 3617,-1680.11 3617,-1686.11 3611,-1692.11 3605,-1692.11"/>
+<text text-anchor="middle" x="3576.5" y="-1677.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Park Invoice</text>
+<text text-anchor="middle" x="3576.5" y="-1665.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(8)</text>
+</g>
+<!-- n0&#45;&gt;n14 -->
+<g id="edge122" class="edge">
+<title>n0&#45;&gt;n14</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M3408.04,-1688.98C3445.73,-1685.63 3491.53,-1681.56 3525.7,-1678.53"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3526.26,-1681.99 3535.91,-1677.62 3525.64,-1675.02 3526.26,-1681.99"/>
+<text text-anchor="middle" x="3447.5" y="-1687.91" font-family="Helvetica,sans-Serif" font-size="9.00">6</text>
+</g>
+<!-- n17 -->
+<g id="node18" class="node">
+<title>n17</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M3648,-1585.11C3648,-1585.11 3505,-1585.11 3505,-1585.11 3499,-1585.11 3493,-1579.11 3493,-1573.11 3493,-1573.11 3493,-1561.11 3493,-1561.11 3493,-1555.11 3499,-1549.11 3505,-1549.11 3505,-1549.11 3648,-1549.11 3648,-1549.11 3654,-1549.11 3660,-1555.11 3660,-1561.11 3660,-1561.11 3660,-1573.11 3660,-1573.11 3660,-1579.11 3654,-1585.11 3648,-1585.11"/>
+<text text-anchor="middle" x="3576.5" y="-1570.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">GR/IR account maintenance</text>
+<text text-anchor="middle" x="3576.5" y="-1558.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(7)</text>
+</g>
+<!-- n0&#45;&gt;n17 -->
+<g id="edge118" class="edge">
+<title>n0&#45;&gt;n17</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M3372.38,-1677.04C3414.52,-1654.23 3487.04,-1614.98 3533.07,-1590.07"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3534.78,-1593.13 3541.9,-1585.29 3531.44,-1586.97 3534.78,-1593.13"/>
+<text text-anchor="middle" x="3447.5" y="-1640.91" font-family="Helvetica,sans-Serif" font-size="9.00">6</text>
+</g>
+<!-- n1 -->
+<g id="node2" class="node">
+<title>n1</title>
+<path fill="#1e40af" stroke="#1e40af" stroke-width="1.2" d="M336,-810.11C336,-810.11 259,-810.11 259,-810.11 253,-810.11 247,-804.11 247,-798.11 247,-798.11 247,-786.11 247,-786.11 247,-780.11 253,-774.11 259,-774.11 259,-774.11 336,-774.11 336,-774.11 342,-774.11 348,-780.11 348,-786.11 348,-786.11 348,-798.11 348,-798.11 348,-804.11 342,-810.11 336,-810.11"/>
+<text text-anchor="middle" x="297.5" y="-795.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#ffffff">Create Delivery</text>
+<text text-anchor="middle" x="297.5" y="-783.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#ffffff">(2,839)</text>
+</g>
+<!-- n1&#45;&gt;n1 -->
+<g id="edge8" class="edge">
+<title>n1&#45;&gt;n1</title>
+<path fill="none" stroke="#94a3b8" stroke-width="2.2" stroke-dasharray="5,2" d="M283.46,-810.44C278.21,-824.63 282.89,-839.11 297.5,-839.11 308.69,-839.11 314.05,-830.62 313.6,-820.28"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="2.2" points="317.01,-819.51 311.54,-810.44 310.16,-820.94 317.01,-819.51"/>
+<text text-anchor="middle" x="297.5" y="-841.91" font-family="Helvetica,sans-Serif" font-size="9.00">2,727</text>
+</g>
+<!-- n2 -->
+<g id="node3" class="node">
+<title>n2</title>
+<path fill="#93c5fd" stroke="#1e40af" stroke-width="1.2" d="M1388,-1079.11C1388,-1079.11 1249,-1079.11 1249,-1079.11 1243,-1079.11 1237,-1073.11 1237,-1067.11 1237,-1067.11 1237,-1055.11 1237,-1055.11 1237,-1049.11 1243,-1043.11 1249,-1043.11 1249,-1043.11 1388,-1043.11 1388,-1043.11 1394,-1043.11 1400,-1049.11 1400,-1055.11 1400,-1055.11 1400,-1067.11 1400,-1067.11 1400,-1073.11 1394,-1079.11 1388,-1079.11"/>
+<text text-anchor="middle" x="1318.5" y="-1064.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Change Outbound Delivery</text>
+<text text-anchor="middle" x="1318.5" y="-1052.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(733)</text>
+</g>
+<!-- n1&#45;&gt;n2 -->
+<g id="edge9" class="edge">
+<title>n1&#45;&gt;n2</title>
+<path fill="none" stroke="#64748b" stroke-width="0.7" d="M304.76,-810.37C326.01,-868.61 401.19,-1046.11 528.5,-1046.11 528.5,-1046.11 528.5,-1046.11 1057,-1046.11 1113.47,-1046.11 1176.72,-1049.66 1226.75,-1053.31"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.7" points="1226.66,-1056.82 1236.89,-1054.07 1227.18,-1049.84 1226.66,-1056.82"/>
+<text text-anchor="middle" x="790" y="-1048.91" font-family="Helvetica,sans-Serif" font-size="9.00">96</text>
+</g>
+<!-- n3 -->
+<g id="node4" class="node">
+<title>n3</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M1632.5,-1525.11C1632.5,-1525.11 1529.5,-1525.11 1529.5,-1525.11 1523.5,-1525.11 1517.5,-1519.11 1517.5,-1513.11 1517.5,-1513.11 1517.5,-1493.11 1517.5,-1493.11 1517.5,-1487.11 1523.5,-1481.11 1529.5,-1481.11 1529.5,-1481.11 1632.5,-1481.11 1632.5,-1481.11 1638.5,-1481.11 1644.5,-1487.11 1644.5,-1493.11 1644.5,-1493.11 1644.5,-1513.11 1644.5,-1513.11 1644.5,-1519.11 1638.5,-1525.11 1632.5,-1525.11"/>
+<text text-anchor="middle" x="1581" y="-1512.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Goods Receipt</text>
+<text text-anchor="middle" x="1581" y="-1500.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">for Production Order</text>
+<text text-anchor="middle" x="1581" y="-1488.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(260)</text>
+</g>
+<!-- n1&#45;&gt;n3 -->
+<g id="edge5" class="edge">
+<title>n1&#45;&gt;n3</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M302.01,-810.22C310.42,-853.83 332.18,-968.21 348,-1064.11 372.02,-1209.75 342.04,-1263.39 421,-1388.11 458.42,-1447.22 458.54,-1503.11 528.5,-1503.11 528.5,-1503.11 528.5,-1503.11 1319.5,-1503.11 1382.89,-1503.11 1454.95,-1503.11 1507.19,-1503.11"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1507.36,-1506.61 1517.36,-1503.11 1507.36,-1499.61 1507.36,-1506.61"/>
+<text text-anchor="middle" x="908.5" y="-1505.91" font-family="Helvetica,sans-Serif" font-size="9.00">21</text>
+</g>
+<!-- n4 -->
+<g id="node5" class="node">
+<title>n4</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M2614,-774.11C2614,-774.11 2527,-774.11 2527,-774.11 2521,-774.11 2515,-768.11 2515,-762.11 2515,-762.11 2515,-750.11 2515,-750.11 2515,-744.11 2521,-738.11 2527,-738.11 2527,-738.11 2614,-738.11 2614,-738.11 2620,-738.11 2626,-744.11 2626,-750.11 2626,-750.11 2626,-762.11 2626,-762.11 2626,-768.11 2620,-774.11 2614,-774.11"/>
+<text text-anchor="middle" x="2570.5" y="-759.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Enter Time Ticket</text>
+<text text-anchor="middle" x="2570.5" y="-747.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(100)</text>
+</g>
+<!-- n1&#45;&gt;n4 -->
+<g id="edge48" class="edge">
+<title>n1&#45;&gt;n4</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M299.84,-773.92C306.79,-694.38 345.75,-381.11 528.5,-381.11 528.5,-381.11 528.5,-381.11 2145,-381.11 2355.42,-381.11 2510.66,-643.1 2555.95,-729.11"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2552.86,-730.76 2560.58,-738.02 2559.07,-727.53 2552.86,-730.76"/>
+<text text-anchor="middle" x="1439.5" y="-383.91" font-family="Helvetica,sans-Serif" font-size="9.00">8</text>
+</g>
+<!-- n5 -->
+<g id="node6" class="node">
+<title>n5</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M162,-1528.11C162,-1528.11 12,-1528.11 12,-1528.11 6,-1528.11 0,-1522.11 0,-1516.11 0,-1516.11 0,-1504.11 0,-1504.11 0,-1498.11 6,-1492.11 12,-1492.11 12,-1492.11 162,-1492.11 162,-1492.11 168,-1492.11 174,-1498.11 174,-1504.11 174,-1504.11 174,-1516.11 174,-1516.11 174,-1522.11 168,-1528.11 162,-1528.11"/>
+<text text-anchor="middle" x="87" y="-1513.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Enter PM Order Confirmation</text>
+<text text-anchor="middle" x="87" y="-1501.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(79)</text>
+</g>
+<!-- n1&#45;&gt;n5 -->
+<g id="edge77" class="edge">
+<title>n1&#45;&gt;n5</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M290.34,-810.23C275.37,-854.44 236.22,-971.41 207,-1070.11 161.17,-1224.92 112.81,-1412.45 95.06,-1482.21"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="91.64,-1481.45 92.57,-1492 98.42,-1483.17 91.64,-1481.45"/>
+<text text-anchor="middle" x="210.5" y="-1072.91" font-family="Helvetica,sans-Serif" font-size="9.00">4</text>
+</g>
+<!-- n10 -->
+<g id="node11" class="node">
+<title>n10</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M3160,-863.11C3160,-863.11 3026,-863.11 3026,-863.11 3020,-863.11 3014,-857.11 3014,-851.11 3014,-851.11 3014,-831.11 3014,-831.11 3014,-825.11 3020,-819.11 3026,-819.11 3026,-819.11 3160,-819.11 3160,-819.11 3166,-819.11 3172,-825.11 3172,-831.11 3172,-831.11 3172,-851.11 3172,-851.11 3172,-857.11 3166,-863.11 3160,-863.11"/>
+<text text-anchor="middle" x="3093" y="-850.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Postprocess</text>
+<text text-anchor="middle" x="3093" y="-838.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e"> Faulty Goods Movements</text>
+<text text-anchor="middle" x="3093" y="-826.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(15)</text>
+</g>
+<!-- n1&#45;&gt;n10 -->
+<g id="edge49" class="edge">
+<title>n1&#45;&gt;n10</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M301.64,-774.1C309.76,-727.32 331.91,-598.1 348,-490.11 356.13,-435.55 342.22,-283.32 381,-244.11 398.66,-226.26 1472.02,-77.11 1721.5,-77.11 1721.5,-77.11 1721.5,-77.11 2812.5,-77.11 2879.22,-77.11 2912.42,-65.38 2958,-114.11 3054.58,-217.36 3084.17,-681.4 3090.55,-808.71"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3087.06,-809.15 3091.04,-818.97 3094.05,-808.81 3087.06,-809.15"/>
+<text text-anchor="middle" x="1722.5" y="-80.91" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n11 -->
+<g id="node12" class="node">
+<title>n11</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M2906,-1041.11C2906,-1041.11 2717,-1041.11 2717,-1041.11 2711,-1041.11 2705,-1035.11 2705,-1029.11 2705,-1029.11 2705,-1017.11 2705,-1017.11 2705,-1011.11 2711,-1005.11 2717,-1005.11 2717,-1005.11 2906,-1005.11 2906,-1005.11 2912,-1005.11 2918,-1011.11 2918,-1017.11 2918,-1017.11 2918,-1029.11 2918,-1029.11 2918,-1035.11 2912,-1041.11 2906,-1041.11"/>
+<text text-anchor="middle" x="2811.5" y="-1026.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Enter Production order Confirmation</text>
+<text text-anchor="middle" x="2811.5" y="-1014.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(15)</text>
+</g>
+<!-- n1&#45;&gt;n11 -->
+<g id="edge68" class="edge">
+<title>n1&#45;&gt;n11</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M299.91,-810.12C304.43,-859.1 321.97,-997.42 381,-1093.11 440.57,-1189.68 438.91,-1325.11 673.5,-1325.11 673.5,-1325.11 673.5,-1325.11 1440.5,-1325.11 1691.84,-1325.11 1754.66,-1319.77 2006,-1321.11 2131.12,-1321.77 2162.38,-1324.11 2287.5,-1324.11 2287.5,-1324.11 2287.5,-1324.11 2571.5,-1324.11 2710.11,-1324.11 2781.14,-1125.92 2803,-1051.18"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2806.38,-1052.06 2805.76,-1041.48 2799.65,-1050.14 2806.38,-1052.06"/>
+<text text-anchor="middle" x="1581" y="-1327.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n15 -->
+<g id="node16" class="node">
+<title>n15</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M590.5,-810.11C590.5,-810.11 468.5,-810.11 468.5,-810.11 462.5,-810.11 456.5,-804.11 456.5,-798.11 456.5,-798.11 456.5,-786.11 456.5,-786.11 456.5,-780.11 462.5,-774.11 468.5,-774.11 468.5,-774.11 590.5,-774.11 590.5,-774.11 596.5,-774.11 602.5,-780.11 602.5,-786.11 602.5,-786.11 602.5,-798.11 602.5,-798.11 602.5,-804.11 596.5,-810.11 590.5,-810.11"/>
+<text text-anchor="middle" x="529.5" y="-795.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Planning Table &#45; Change</text>
+<text text-anchor="middle" x="529.5" y="-783.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(7)</text>
+</g>
+<!-- n1&#45;&gt;n15 -->
+<g id="edge22" class="edge">
+<title>n1&#45;&gt;n15</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M348.12,-792.11C376.73,-792.11 413.41,-792.11 446.22,-792.11"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="446.26,-795.61 456.26,-792.11 446.26,-788.61 446.26,-795.61"/>
+<text text-anchor="middle" x="384.5" y="-794.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n20 -->
+<g id="node21" class="node">
+<title>n20</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M1671,-520.11C1671,-520.11 1491,-520.11 1491,-520.11 1485,-520.11 1479,-514.11 1479,-508.11 1479,-508.11 1479,-496.11 1479,-496.11 1479,-490.11 1485,-484.11 1491,-484.11 1491,-484.11 1671,-484.11 1671,-484.11 1677,-484.11 1683,-490.11 1683,-496.11 1683,-496.11 1683,-508.11 1683,-508.11 1683,-514.11 1677,-520.11 1671,-520.11"/>
+<text text-anchor="middle" x="1581" y="-505.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Single Process Order Confirmation</text>
+<text text-anchor="middle" x="1581" y="-493.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(4)</text>
+</g>
+<!-- n1&#45;&gt;n20 -->
+<g id="edge65" class="edge">
+<title>n1&#45;&gt;n20</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M303.12,-773.78C320.48,-709.63 388.17,-499.11 528.5,-499.11 528.5,-499.11 528.5,-499.11 1319.5,-499.11 1368.48,-499.11 1422.65,-499.64 1468.84,-500.26"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1468.82,-503.76 1478.87,-500.4 1468.92,-496.77 1468.82,-503.76"/>
+<text text-anchor="middle" x="908.5" y="-501.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n23 -->
+<g id="node24" class="node">
+<title>n23</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M626,-160.11C626,-160.11 433,-160.11 433,-160.11 427,-160.11 421,-154.11 421,-148.11 421,-148.11 421,-136.11 421,-136.11 421,-130.11 427,-124.11 433,-124.11 433,-124.11 626,-124.11 626,-124.11 632,-124.11 638,-130.11 638,-136.11 638,-136.11 638,-148.11 638,-148.11 638,-154.11 632,-160.11 626,-160.11"/>
+<text text-anchor="middle" x="529.5" y="-145.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Open Reprocessing Records / Pr.Line</text>
+<text text-anchor="middle" x="529.5" y="-133.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(1)</text>
+</g>
+<!-- n1&#45;&gt;n23 -->
+<g id="edge70" class="edge">
+<title>n1&#45;&gt;n23</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M298.56,-773.82C299.21,-683.65 306.35,-287.13 381,-195.11 391.82,-181.77 406.27,-171.79 421.9,-164.32"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="423.49,-167.44 431.22,-160.2 420.66,-161.04 423.49,-167.44"/>
+<text text-anchor="middle" x="384.5" y="-197.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n2&#45;&gt;n0 -->
+<g id="edge108" class="edge">
+<title>n2&#45;&gt;n0</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1360,-1079.24C1391.76,-1092.75 1437.41,-1110.61 1479,-1121.11 1915.17,-1231.22 2049.24,-1134.27 2482,-1257.11 2815.62,-1351.8 2901.55,-1389.3 3195,-1574.11 3239.59,-1602.19 3284.86,-1643.45 3311.93,-1669.8"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3309.49,-1672.3 3319.07,-1676.81 3314.39,-1667.31 3309.49,-1672.3"/>
+<text text-anchor="middle" x="2385" y="-1248.91" font-family="Helvetica,sans-Serif" font-size="9.00">44</text>
+</g>
+<!-- n2&#45;&gt;n1 -->
+<g id="edge7" class="edge">
+<title>n2&#45;&gt;n1</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1262.01,-1079.13C1209.72,-1094.49 1128.88,-1114.11 1057,-1114.11 528.5,-1114.11 528.5,-1114.11 528.5,-1114.11 459.83,-1114.11 429.27,-1116.95 381,-1068.11 312.62,-998.91 300.52,-875.51 298.66,-820.23"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="302.15,-820.04 298.41,-810.13 295.16,-820.21 302.15,-820.04"/>
+<text text-anchor="middle" x="790" y="-1116.91" font-family="Helvetica,sans-Serif" font-size="9.00">84</text>
+</g>
+<!-- n2&#45;&gt;n2 -->
+<g id="edge3" class="edge">
+<title>n2&#45;&gt;n2</title>
+<path fill="none" stroke="#94a3b8" stroke-width="1.1" stroke-dasharray="5,2" d="M1299.23,-1079.44C1292.03,-1093.63 1298.45,-1108.11 1318.5,-1108.11 1333.85,-1108.11 1341.21,-1099.62 1340.59,-1089.28"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="1.1" points="1343.89,-1088.09 1337.77,-1079.44 1337.16,-1090.02 1343.89,-1088.09"/>
+<text text-anchor="middle" x="1318.5" y="-1110.91" font-family="Helvetica,sans-Serif" font-size="9.00">898</text>
+</g>
+<!-- n2&#45;&gt;n3 -->
+<g id="edge10" class="edge">
+<title>n2&#45;&gt;n3</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1323.25,-1079.28C1334.27,-1130.09 1369.84,-1276.88 1433,-1383.11 1456.49,-1422.62 1498.04,-1454.71 1530.99,-1475.73"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1529.26,-1478.78 1539.6,-1481.1 1532.97,-1472.84 1529.26,-1478.78"/>
+<text text-anchor="middle" x="1439.5" y="-1402.91" font-family="Helvetica,sans-Serif" font-size="9.00">22</text>
+</g>
+<!-- n2&#45;&gt;n4 -->
+<g id="edge47" class="edge">
+<title>n2&#45;&gt;n4</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1334.99,-1042.64C1361.24,-1012.71 1417.62,-954.15 1479,-926.11 1665.07,-841.11 2299.37,-779.64 2504.75,-761.58"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2505.13,-765.06 2514.79,-760.7 2504.52,-758.08 2505.13,-765.06"/>
+<text text-anchor="middle" x="1999.5" y="-820.91" font-family="Helvetica,sans-Serif" font-size="9.00">24</text>
+</g>
+<!-- n2&#45;&gt;n5 -->
+<g id="edge30" class="edge">
+<title>n2&#45;&gt;n5</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1306.7,-1079.3C1284.56,-1114.96 1230.51,-1194.22 1164,-1236.11 1122.21,-1262.43 1106.39,-1266.11 1057,-1266.11 673.5,-1266.11 673.5,-1266.11 673.5,-1266.11 454.88,-1266.11 400.94,-1321.21 207,-1422.11 173.36,-1439.61 138.95,-1466.18 115.84,-1485.55"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="113.52,-1482.93 108.16,-1492.07 118.05,-1488.27 113.52,-1482.93"/>
+<text text-anchor="middle" x="674.5" y="-1268.91" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n8 -->
+<g id="node9" class="node">
+<title>n8</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M2211.5,-735.11C2211.5,-735.11 2076.5,-735.11 2076.5,-735.11 2070.5,-735.11 2064.5,-729.11 2064.5,-723.11 2064.5,-723.11 2064.5,-711.11 2064.5,-711.11 2064.5,-705.11 2070.5,-699.11 2076.5,-699.11 2076.5,-699.11 2211.5,-699.11 2211.5,-699.11 2217.5,-699.11 2223.5,-705.11 2223.5,-711.11 2223.5,-711.11 2223.5,-723.11 2223.5,-723.11 2223.5,-729.11 2217.5,-735.11 2211.5,-735.11"/>
+<text text-anchor="middle" x="2144" y="-720.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Post Goods Receipt for PO</text>
+<text text-anchor="middle" x="2144" y="-708.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(35)</text>
+</g>
+<!-- n2&#45;&gt;n8 -->
+<g id="edge87" class="edge">
+<title>n2&#45;&gt;n8</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1322.42,-1042.97C1330.71,-997.79 1358.78,-879.69 1433,-822.11 1528.34,-748.15 1885.77,-726 2054.18,-719.6"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2054.4,-723.09 2064.26,-719.22 2054.14,-716.1 2054.4,-723.09"/>
+<text text-anchor="middle" x="1722.5" y="-747.91" font-family="Helvetica,sans-Serif" font-size="9.00">42</text>
+</g>
+<!-- n9 -->
+<g id="node10" class="node">
+<title>n9</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M2430,-1404.11C2430,-1404.11 2340,-1404.11 2340,-1404.11 2334,-1404.11 2328,-1398.11 2328,-1392.11 2328,-1392.11 2328,-1380.11 2328,-1380.11 2328,-1374.11 2334,-1368.11 2340,-1368.11 2340,-1368.11 2430,-1368.11 2430,-1368.11 2436,-1368.11 2442,-1374.11 2442,-1380.11 2442,-1380.11 2442,-1392.11 2442,-1392.11 2442,-1398.11 2436,-1404.11 2430,-1404.11"/>
+<text text-anchor="middle" x="2385" y="-1389.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Goods Withdrawal</text>
+<text text-anchor="middle" x="2385" y="-1377.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(21)</text>
+</g>
+<!-- n2&#45;&gt;n9 -->
+<g id="edge92" class="edge">
+<title>n2&#45;&gt;n9</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1326.9,-1079.15C1341.61,-1112.43 1377.91,-1182.99 1433,-1215.11 1654.61,-1344.28 1754.19,-1235.24 2006,-1284.11 2116.96,-1305.64 2243.25,-1342.24 2318.15,-1365.24"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2317.33,-1368.65 2327.92,-1368.25 2319.39,-1361.96 2317.33,-1368.65"/>
+<text text-anchor="middle" x="1861" y="-1279.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n2&#45;&gt;n11 -->
+<g id="edge41" class="edge">
+<title>n2&#45;&gt;n11</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1400.21,-1073.86C1565.99,-1098.9 1957.08,-1152.11 2287.5,-1152.11 2287.5,-1152.11 2287.5,-1152.11 2571.5,-1152.11 2658.1,-1152.11 2743.46,-1085.71 2784.78,-1048.19"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2787.24,-1050.68 2792.21,-1041.32 2782.49,-1045.54 2787.24,-1050.68"/>
+<text text-anchor="middle" x="2144" y="-1154.91" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n2&#45;&gt;n20 -->
+<g id="edge62" class="edge">
+<title>n2&#45;&gt;n20</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1325.8,-1042.93C1341.91,-996.98 1386.61,-872.74 1433,-773.11 1451.13,-734.17 1458.53,-725.87 1479,-688.11 1509.62,-631.62 1545.54,-565.51 1565.23,-529.29"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1568.4,-530.78 1570.1,-520.32 1562.25,-527.43 1568.4,-530.78"/>
+<text text-anchor="middle" x="1439.5" y="-775.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n3&#45;&gt;n0 -->
+<g id="edge104" class="edge">
+<title>n3&#45;&gt;n0</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1589.22,-1525.4C1608.17,-1580.29 1664.7,-1722.86 1762,-1796.11 1852.5,-1864.23 1885.23,-1891.11 1998.5,-1891.11 1998.5,-1891.11 1998.5,-1891.11 3094,-1891.11 3200.57,-1891.11 3286.79,-1775.48 3321.05,-1721.85"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3324.12,-1723.53 3326.46,-1713.2 3318.19,-1719.81 3324.12,-1723.53"/>
+<text text-anchor="middle" x="2478.5" y="-1893.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n3&#45;&gt;n1 -->
+<g id="edge4" class="edge">
+<title>n3&#45;&gt;n1</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1517.32,-1484.54C1399.44,-1451.31 1136.14,-1385.11 909.5,-1385.11 528.5,-1385.11 528.5,-1385.11 528.5,-1385.11 477.83,-1385.11 457.74,-1382.01 421,-1347.11 387.19,-1314.99 394.04,-1294.88 381,-1250.11 357.53,-1169.5 362.85,-1146.74 348,-1064.11 331.98,-974.98 312.69,-869.5 303.65,-820.17"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="307.08,-819.45 301.83,-810.25 300.19,-820.71 307.08,-819.45"/>
+<text text-anchor="middle" x="908.5" y="-1387.91" font-family="Helvetica,sans-Serif" font-size="9.00">21</text>
+</g>
+<!-- n3&#45;&gt;n2 -->
+<g id="edge6" class="edge">
+<title>n3&#45;&gt;n2</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1536.7,-1481C1517.03,-1469.23 1494.71,-1453.22 1479,-1434.11 1455.39,-1405.38 1362.19,-1170.2 1330.28,-1088.75"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1333.52,-1087.42 1326.62,-1079.39 1327,-1089.97 1333.52,-1087.42"/>
+<text text-anchor="middle" x="1439.5" y="-1368.91" font-family="Helvetica,sans-Serif" font-size="9.00">34</text>
+</g>
+<!-- n3&#45;&gt;n3 -->
+<g id="edge2" class="edge">
+<title>n3&#45;&gt;n3</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.7" stroke-dasharray="5,2" d="M1557.06,-1525.12C1550.33,-1539.81 1558.3,-1554.11 1581,-1554.11 1598.55,-1554.11 1607.3,-1545.56 1607.25,-1534.89"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.7" points="1610.65,-1534.05 1604.94,-1525.12 1603.84,-1535.66 1610.65,-1534.05"/>
+<text text-anchor="middle" x="1581" y="-1556.91" font-family="Helvetica,sans-Serif" font-size="9.00">140</text>
+</g>
+<!-- n3&#45;&gt;n4 -->
+<g id="edge35" class="edge">
+<title>n3&#45;&gt;n4</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1644.55,-1496.66C1659.17,-1492.19 1673.29,-1484.9 1683,-1473.11 1731.82,-1413.82 1672.35,-1192.29 1716,-1129.11 1907.48,-851.91 2112.28,-980.31 2442,-911.11 2460.04,-907.32 2467.28,-911.22 2482,-900.11 2521.78,-870.08 2547.37,-816.24 2560.03,-783.58"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2563.33,-784.77 2563.55,-774.18 2556.77,-782.32 2563.33,-784.77"/>
+<text text-anchor="middle" x="2144" y="-943.91" font-family="Helvetica,sans-Serif" font-size="9.00">16</text>
+</g>
+<!-- n3&#45;&gt;n5 -->
+<g id="edge82" class="edge">
+<title>n3&#45;&gt;n5</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1567.06,-1525.29C1533.62,-1579.46 1438.52,-1714.11 1319.5,-1714.11 296.5,-1714.11 296.5,-1714.11 296.5,-1714.11 196.65,-1714.11 126.93,-1593.1 100.16,-1537.48"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="103.22,-1535.77 95.8,-1528.21 96.88,-1538.75 103.22,-1535.77"/>
+<text text-anchor="middle" x="790" y="-1716.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n7 -->
+<g id="node8" class="node">
+<title>n7</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M1918,-1701.11C1918,-1701.11 1804,-1701.11 1804,-1701.11 1798,-1701.11 1792,-1695.11 1792,-1689.11 1792,-1689.11 1792,-1677.11 1792,-1677.11 1792,-1671.11 1798,-1665.11 1804,-1665.11 1804,-1665.11 1918,-1665.11 1918,-1665.11 1924,-1665.11 1930,-1671.11 1930,-1677.11 1930,-1677.11 1930,-1689.11 1930,-1689.11 1930,-1695.11 1924,-1701.11 1918,-1701.11"/>
+<text text-anchor="middle" x="1861" y="-1686.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Record usage decision</text>
+<text text-anchor="middle" x="1861" y="-1674.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(36)</text>
+</g>
+<!-- n3&#45;&gt;n7 -->
+<g id="edge16" class="edge">
+<title>n3&#45;&gt;n7</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1603.29,-1525.23C1635.1,-1557.14 1698.16,-1616.07 1762,-1651.11 1768.84,-1654.86 1776.19,-1658.26 1783.68,-1661.33"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1782.63,-1664.67 1793.22,-1665.03 1785.16,-1658.15 1782.63,-1664.67"/>
+<text text-anchor="middle" x="1722.5" y="-1629.91" font-family="Helvetica,sans-Serif" font-size="9.00">9</text>
+</g>
+<!-- n3&#45;&gt;n9 -->
+<g id="edge91" class="edge">
+<title>n3&#45;&gt;n9</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1644.58,-1489.63C1657.77,-1485.41 1671.24,-1479.99 1683,-1473.11 1700.63,-1462.79 1697.31,-1449.36 1716,-1441.11 1833.92,-1389.01 2167.28,-1422.61 2295,-1405.11 2302.4,-1404.09 2310.1,-1402.81 2317.75,-1401.38"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2318.58,-1404.78 2327.72,-1399.44 2317.24,-1397.91 2318.58,-1404.78"/>
+<text text-anchor="middle" x="1999.5" y="-1413.91" font-family="Helvetica,sans-Serif" font-size="9.00">14</text>
+</g>
+<!-- n3&#45;&gt;n10 -->
+<g id="edge58" class="edge">
+<title>n3&#45;&gt;n10</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1591.05,-1525.23C1612.45,-1574.36 1671.29,-1692.34 1762,-1744.11 1928.87,-1839.34 2457.89,-1869.13 2626,-1776.11 2715.44,-1726.62 2672.65,-1657.07 2705,-1560.11 2715.5,-1528.64 2933.62,-1044.36 2951,-1016.11 2984.78,-961.19 3033.7,-904.25 3064.14,-870.79"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3066.91,-872.94 3071.09,-863.2 3061.75,-868.21 3066.91,-872.94"/>
+<text text-anchor="middle" x="2385" y="-1833.91" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n3&#45;&gt;n11 -->
+<g id="edge67" class="edge">
+<title>n3&#45;&gt;n11</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1644.69,-1511.32C1845.39,-1536.24 2468.23,-1602.73 2626,-1490.11 2775.88,-1383.12 2804.03,-1134.72 2809.3,-1051.13"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2812.79,-1051.3 2809.87,-1041.12 2805.8,-1050.9 2812.79,-1051.3"/>
+<text text-anchor="middle" x="2288.5" y="-1556.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n16 -->
+<g id="node17" class="node">
+<title>n16</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M1948,-1971.11C1948,-1971.11 1774,-1971.11 1774,-1971.11 1768,-1971.11 1762,-1965.11 1762,-1959.11 1762,-1959.11 1762,-1947.11 1762,-1947.11 1762,-1941.11 1768,-1935.11 1774,-1935.11 1774,-1935.11 1948,-1935.11 1948,-1935.11 1954,-1935.11 1960,-1941.11 1960,-1947.11 1960,-1947.11 1960,-1959.11 1960,-1959.11 1960,-1965.11 1954,-1971.11 1948,-1971.11"/>
+<text text-anchor="middle" x="1861" y="-1956.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">PM Order Collective Confirmation</text>
+<text text-anchor="middle" x="1861" y="-1944.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(7)</text>
+</g>
+<!-- n3&#45;&gt;n16 -->
+<g id="edge72" class="edge">
+<title>n3&#45;&gt;n16</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1586.06,-1525.22C1597.9,-1585.32 1636.66,-1755.03 1716,-1872.11 1734.36,-1899.2 1764.96,-1918.23 1793.24,-1931.01"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1792.16,-1934.35 1802.72,-1935.11 1794.93,-1927.93 1792.16,-1934.35"/>
+<text text-anchor="middle" x="1722.5" y="-1887.91" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n26 -->
+<g id="node27" class="node">
+<title>n26</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M1929,-1636.11C1929,-1636.11 1793,-1636.11 1793,-1636.11 1787,-1636.11 1781,-1630.11 1781,-1624.11 1781,-1624.11 1781,-1612.11 1781,-1612.11 1781,-1606.11 1787,-1600.11 1793,-1600.11 1793,-1600.11 1929,-1600.11 1929,-1600.11 1935,-1600.11 1941,-1606.11 1941,-1612.11 1941,-1612.11 1941,-1624.11 1941,-1624.11 1941,-1630.11 1935,-1636.11 1929,-1636.11"/>
+<text text-anchor="middle" x="1861" y="-1621.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Cancel Material Document</text>
+<text text-anchor="middle" x="1861" y="-1609.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(1)</text>
+</g>
+<!-- n3&#45;&gt;n26 -->
+<g id="edge39" class="edge">
+<title>n3&#45;&gt;n26</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1610.72,-1525.28C1636.82,-1544.38 1677.08,-1571.29 1716,-1587.11 1733.27,-1594.13 1752.38,-1599.66 1770.89,-1603.99"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1770.27,-1607.44 1780.79,-1606.21 1771.8,-1600.61 1770.27,-1607.44"/>
+<text text-anchor="middle" x="1722.5" y="-1593.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n4&#45;&gt;n0 -->
+<g id="edge111" class="edge">
+<title>n4&#45;&gt;n0</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2626.38,-740.53C2746.77,-710.03 3035.93,-657.51 3195,-804.11 3325.37,-924.26 3336.21,-1528.6 3336.97,-1666.89"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3333.47,-1667.1 3337.01,-1677.08 3340.47,-1667.07 3333.47,-1667.1"/>
+<text text-anchor="middle" x="2954.5" y="-712.91" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n4&#45;&gt;n1 -->
+<g id="edge44" class="edge">
+<title>n4&#45;&gt;n1</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2537.87,-737.98C2417.62,-670.84 1975.76,-440.11 1582,-440.11 528.5,-440.11 528.5,-440.11 528.5,-440.11 374.29,-440.11 317.97,-679.78 302.99,-763.59"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="299.5,-763.23 301.26,-773.68 306.4,-764.42 299.5,-763.23"/>
+<text text-anchor="middle" x="1439.5" y="-442.91" font-family="Helvetica,sans-Serif" font-size="9.00">8</text>
+</g>
+<!-- n4&#45;&gt;n2 -->
+<g id="edge46" class="edge">
+<title>n4&#45;&gt;n2</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2534.12,-774.25C2482.81,-799.76 2384.12,-845.82 2295,-870.11 1921.57,-971.9 1798.02,-865.37 1433,-994.11 1403.85,-1004.39 1373.87,-1022.47 1352.04,-1037.26"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1350.04,-1034.39 1343.8,-1042.95 1354.02,-1040.15 1350.04,-1034.39"/>
+<text text-anchor="middle" x="1999.5" y="-921.91" font-family="Helvetica,sans-Serif" font-size="9.00">15</text>
+</g>
+<!-- n4&#45;&gt;n3 -->
+<g id="edge85" class="edge">
+<title>n4&#45;&gt;n3</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2563.78,-774.35C2552.61,-807.64 2525.13,-879.04 2482,-925.11 2240.26,-1183.3 1991.72,-995.17 1762,-1264.11 1729.75,-1301.86 1719.36,-1439.3 1683,-1473.11 1674.85,-1480.69 1664.86,-1486.36 1654.37,-1490.6"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1652.86,-1487.43 1644.64,-1494.11 1655.24,-1494.01 1652.86,-1487.43"/>
+<text text-anchor="middle" x="2144" y="-1106.91" font-family="Helvetica,sans-Serif" font-size="9.00">29</text>
+</g>
+<!-- n4&#45;&gt;n4 -->
+<g id="edge24" class="edge">
+<title>n4&#45;&gt;n4</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M2555.48,-774.44C2549.86,-788.63 2554.87,-803.11 2570.5,-803.11 2582.47,-803.11 2588.21,-794.62 2587.72,-784.28"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="2591.12,-783.44 2585.52,-774.44 2584.29,-784.96 2591.12,-783.44"/>
+<text text-anchor="middle" x="2570.5" y="-805.91" font-family="Helvetica,sans-Serif" font-size="9.00">44</text>
+</g>
+<!-- n4&#45;&gt;n5 -->
+<g id="edge79" class="edge">
+<title>n4&#45;&gt;n5</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2568.86,-738.07C2565.71,-672.73 2547.3,-444.6 2442,-300.11 2424.43,-276 2415.83,-263.11 2386,-263.11 1721.5,-263.11 1721.5,-263.11 1721.5,-263.11 1612.61,-263.11 1582.03,-263.36 1479,-228.11 1329.66,-177.01 1320.98,-80.56 1164,-64.11 931.48,-39.74 871.79,-59.44 638,-58.11 446.45,-57.02 347.87,71.69 207,-58.11 98.26,-158.3 88.88,-1286.91 88.08,-1481.59"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="84.58,-1481.85 88.04,-1491.86 91.58,-1481.87 84.58,-1481.85"/>
+<text text-anchor="middle" x="1318.5" y="-193.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n4&#45;&gt;n8 -->
+<g id="edge88" class="edge">
+<title>n4&#45;&gt;n8</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2514.98,-748.12C2492.43,-745.01 2465.99,-741.59 2442,-739.11 2372.11,-731.87 2292.74,-726.11 2233.64,-722.31"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2233.79,-718.81 2223.59,-721.67 2233.35,-725.8 2233.79,-718.81"/>
+<text text-anchor="middle" x="2385" y="-741.91" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n4&#45;&gt;n10 -->
+<g id="edge55" class="edge">
+<title>n4&#45;&gt;n10</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2626.22,-765.04C2716.07,-779.72 2895.67,-809.05 3003.7,-826.69"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3003.17,-830.15 3013.61,-828.31 3004.3,-823.24 3003.17,-830.15"/>
+<text text-anchor="middle" x="2811.5" y="-815.91" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n4&#45;&gt;n11 -->
+<g id="edge54" class="edge">
+<title>n4&#45;&gt;n11</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2587.93,-774.46C2629.56,-820.97 2739.29,-943.56 2787.37,-997.27"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2785,-999.86 2794.27,-1004.98 2790.21,-995.2 2785,-999.86"/>
+<text text-anchor="middle" x="2665.5" y="-868.91" font-family="Helvetica,sans-Serif" font-size="9.00">4</text>
+</g>
+<!-- n5&#45;&gt;n0 -->
+<g id="edge109" class="edge">
+<title>n5&#45;&gt;n0</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M90.26,-1528.15C103.19,-1627.36 171.6,-2102.11 296.5,-2102.11 296.5,-2102.11 296.5,-2102.11 3094,-2102.11 3270.93,-2102.11 3322.07,-1815.07 3333.91,-1723.1"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3337.39,-1723.47 3335.14,-1713.12 3330.44,-1722.62 3337.39,-1723.47"/>
+<text text-anchor="middle" x="1722.5" y="-2104.91" font-family="Helvetica,sans-Serif" font-size="9.00">3</text>
+</g>
+<!-- n5&#45;&gt;n1 -->
+<g id="edge42" class="edge">
+<title>n5&#45;&gt;n1</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M93.26,-1492C121.4,-1395.1 254.19,-937.8 288.43,-819.9"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="291.83,-820.75 291.26,-810.17 285.11,-818.79 291.83,-820.75"/>
+<text text-anchor="middle" x="210.5" y="-1089.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n5&#45;&gt;n2 -->
+<g id="edge76" class="edge">
+<title>n5&#45;&gt;n2</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M122.36,-1492.07C162.85,-1472.53 232.71,-1444.11 296.5,-1444.11 296.5,-1444.11 296.5,-1444.11 1057,-1444.11 1228.74,-1444.11 1295.23,-1177.55 1312.56,-1089.19"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1316,-1089.8 1314.43,-1079.32 1309.13,-1088.49 1316,-1089.8"/>
+<text text-anchor="middle" x="674.5" y="-1446.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n5&#45;&gt;n3 -->
+<g id="edge84" class="edge">
+<title>n5&#45;&gt;n3</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M122.36,-1528.14C162.85,-1547.68 232.71,-1576.11 296.5,-1576.11 296.5,-1576.11 296.5,-1576.11 1319.5,-1576.11 1391.35,-1576.11 1470.35,-1550.04 1522.3,-1529.06"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1523.76,-1532.24 1531.68,-1525.21 1521.1,-1525.77 1523.76,-1532.24"/>
+<text text-anchor="middle" x="790" y="-1578.91" font-family="Helvetica,sans-Serif" font-size="9.00">4</text>
+</g>
+<!-- n5&#45;&gt;n4 -->
+<g id="edge83" class="edge">
+<title>n5&#45;&gt;n4</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M88.16,-1491.84C89.67,-1351.61 104.93,-445.31 247,-220.11 343.38,-67.32 457.47,-102.6 638,-109.11 761.35,-113.56 793.08,-109.83 915,-129.11 1279.04,-186.68 1352.93,-322.11 1721.5,-322.11 1721.5,-322.11 1721.5,-322.11 2289.5,-322.11 2483.33,-322.11 2549.46,-631.56 2565.35,-727.86"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2561.94,-728.69 2566.97,-738.01 2568.85,-727.59 2561.94,-728.69"/>
+<text text-anchor="middle" x="1318.5" y="-278.91" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n5&#45;&gt;n5 -->
+<g id="edge21" class="edge">
+<title>n5&#45;&gt;n5</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M67.08,-1528.44C59.63,-1542.63 66.27,-1557.11 87,-1557.11 102.87,-1557.11 110.48,-1548.62 109.84,-1538.28"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="113.12,-1537.03 106.92,-1528.44 106.41,-1539.02 113.12,-1537.03"/>
+<text text-anchor="middle" x="87" y="-1559.91" font-family="Helvetica,sans-Serif" font-size="9.00">61</text>
+</g>
+<!-- n5&#45;&gt;n6 -->
+<g id="edge106" class="edge">
+<title>n5&#45;&gt;n6</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M89.61,-1528.24C99.56,-1634.82 156.9,-2175.11 296.5,-2175.11 296.5,-2175.11 296.5,-2175.11 3339,-2175.11 3478.22,-2175.11 3547.42,-1974.02 3568.41,-1898.94"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3571.8,-1899.78 3571.05,-1889.21 3565.05,-1897.95 3571.8,-1899.78"/>
+<text text-anchor="middle" x="1861" y="-2177.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n5&#45;&gt;n15 -->
+<g id="edge36" class="edge">
+<title>n5&#45;&gt;n15</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M97.5,-1492.05C117.19,-1454.81 164.22,-1366.95 207,-1295.11 317.58,-1109.43 461.32,-892.5 510.84,-818.43"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="513.75,-820.38 516.4,-810.12 507.93,-816.48 513.75,-820.38"/>
+<text text-anchor="middle" x="297.5" y="-1228.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n5&#45;&gt;n16 -->
+<g id="edge71" class="edge">
+<title>n5&#45;&gt;n16</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M88.76,-1528.12C93.11,-1606.14 121.32,-1911.11 296.5,-1911.11 296.5,-1911.11 296.5,-1911.11 1440.5,-1911.11 1546.71,-1911.11 1667.29,-1924.6 1751.83,-1936.29"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1751.57,-1939.79 1761.95,-1937.71 1752.54,-1932.86 1751.57,-1939.79"/>
+<text text-anchor="middle" x="908.5" y="-1913.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n6&#45;&gt;n0 -->
+<g id="edge117" class="edge">
+<title>n6&#45;&gt;n0</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M3521.95,-1853.06C3510.02,-1848.03 3497.74,-1842.02 3487,-1835.11 3436.5,-1802.59 3387.87,-1751.61 3360.85,-1720.97"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3363.35,-1718.51 3354.14,-1713.27 3358.07,-1723.11 3363.35,-1718.51"/>
+<text text-anchor="middle" x="3447.5" y="-1810.91" font-family="Helvetica,sans-Serif" font-size="9.00">30</text>
+</g>
+<!-- n7&#45;&gt;n0 -->
+<g id="edge110" class="edge">
+<title>n7&#45;&gt;n0</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1902.03,-1701.12C1955.72,-1723.59 2054.56,-1759.11 2143,-1759.11 2143,-1759.11 2143,-1759.11 3094,-1759.11 3161.89,-1759.11 3237.04,-1735.46 3285.54,-1716.91"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3286.82,-1720.17 3294.87,-1713.28 3284.28,-1713.64 3286.82,-1720.17"/>
+<text text-anchor="middle" x="2570.5" y="-1761.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n7&#45;&gt;n1 -->
+<g id="edge18" class="edge">
+<title>n7&#45;&gt;n1</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1791.97,-1687.73C1607.47,-1698.24 1083.74,-1714.76 671,-1598.11 550.49,-1564.05 501.4,-1564.13 421,-1468.11 303.86,-1328.21 375.18,-1244.54 348,-1064.11 334.51,-974.57 314.02,-869.28 304.17,-820.08"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="307.59,-819.3 302.19,-810.19 300.72,-820.68 307.59,-819.3"/>
+<text text-anchor="middle" x="1056" y="-1682.91" font-family="Helvetica,sans-Serif" font-size="9.00">3</text>
+</g>
+<!-- n7&#45;&gt;n2 -->
+<g id="edge56" class="edge">
+<title>n7&#45;&gt;n2</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1791.8,-1670.03C1780.81,-1665.48 1770.33,-1659.36 1762,-1651.11 1729.35,-1618.76 1746.21,-1595.72 1729,-1553.11 1711.13,-1508.87 1715.59,-1490.95 1683,-1456.11 1612.05,-1380.25 1554.8,-1413.11 1479,-1342.11 1451.56,-1316.4 1452.18,-1303.45 1433,-1271.11 1394.84,-1206.75 1354.06,-1128.73 1333.33,-1088.32"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1336.41,-1086.66 1328.74,-1079.36 1330.18,-1089.85 1336.41,-1086.66"/>
+<text text-anchor="middle" x="1581" y="-1458.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n7&#45;&gt;n3 -->
+<g id="edge17" class="edge">
+<title>n7&#45;&gt;n3</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1791.73,-1672.61C1766.7,-1666.75 1738.91,-1657.77 1716,-1644.11 1668.34,-1615.69 1626.66,-1565.66 1602.91,-1533.47"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1605.69,-1531.34 1596.98,-1525.3 1600.02,-1535.45 1605.69,-1531.34"/>
+<text text-anchor="middle" x="1722.5" y="-1651.91" font-family="Helvetica,sans-Serif" font-size="9.00">4</text>
+</g>
+<!-- n7&#45;&gt;n7 -->
+<g id="edge1" class="edge">
+<title>n7&#45;&gt;n7</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M1838.47,-1701.44C1830.04,-1715.63 1837.55,-1730.11 1861,-1730.11 1879.14,-1730.11 1887.74,-1721.45 1886.81,-1710.96"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="1890.1,-1709.76 1883.53,-1701.44 1883.48,-1712.03 1890.1,-1709.76"/>
+<text text-anchor="middle" x="1861" y="-1732.91" font-family="Helvetica,sans-Serif" font-size="9.00">20</text>
+</g>
+<!-- n19 -->
+<g id="node20" class="node">
+<title>n19</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M2237,-1656.11C2237,-1656.11 2051,-1656.11 2051,-1656.11 2045,-1656.11 2039,-1650.11 2039,-1644.11 2039,-1644.11 2039,-1632.11 2039,-1632.11 2039,-1626.11 2045,-1620.11 2051,-1620.11 2051,-1620.11 2237,-1620.11 2237,-1620.11 2243,-1620.11 2249,-1626.11 2249,-1632.11 2249,-1632.11 2249,-1644.11 2249,-1644.11 2249,-1650.11 2243,-1656.11 2237,-1656.11"/>
+<text text-anchor="middle" x="2144" y="-1641.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Change usage decision with history</text>
+<text text-anchor="middle" x="2144" y="-1629.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(4)</text>
+</g>
+<!-- n7&#45;&gt;n19 -->
+<g id="edge11" class="edge">
+<title>n7&#45;&gt;n19</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1930.02,-1672.21C1959.74,-1667.46 1995.41,-1661.74 2028.98,-1656.37"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2029.54,-1659.82 2038.86,-1654.79 2028.43,-1652.91 2029.54,-1659.82"/>
+<text text-anchor="middle" x="1999.5" y="-1663.91" font-family="Helvetica,sans-Serif" font-size="9.00">4</text>
+</g>
+<!-- n8&#45;&gt;n0 -->
+<g id="edge107" class="edge">
+<title>n8&#45;&gt;n0</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2185.87,-735.14C2271.91,-772.52 2478.64,-859.27 2659,-911.11 2775.78,-944.67 3108.73,-933.54 3195,-1019.11 3289.34,-1112.68 3326.76,-1550.79 3335.11,-1666.84"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3331.63,-1667.31 3335.83,-1677.04 3338.61,-1666.82 3331.63,-1667.31"/>
+<text text-anchor="middle" x="2665.5" y="-917.91" font-family="Helvetica,sans-Serif" font-size="9.00">13</text>
+</g>
+<!-- n8&#45;&gt;n2 -->
+<g id="edge100" class="edge">
+<title>n8&#45;&gt;n2</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2064.3,-733.66C1882.14,-772.1 1445.98,-864.81 1433,-874.11 1376.81,-914.35 1343.15,-991.88 1328.38,-1033.35"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1325.07,-1032.23 1325.11,-1042.83 1331.68,-1034.52 1325.07,-1032.23"/>
+<text text-anchor="middle" x="1722.5" y="-809.91" font-family="Helvetica,sans-Serif" font-size="9.00">41</text>
+</g>
+<!-- n8&#45;&gt;n4 -->
+<g id="edge101" class="edge">
+<title>n8&#45;&gt;n4</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2223.75,-708.02C2283.94,-702.94 2368.76,-699.83 2442,-712.11 2468.07,-716.48 2495.93,-725.55 2518.95,-734.33"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2517.9,-737.68 2528.49,-738.05 2520.45,-731.16 2517.9,-737.68"/>
+<text text-anchor="middle" x="2385" y="-714.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n8&#45;&gt;n8 -->
+<g id="edge95" class="edge">
+<title>n8&#45;&gt;n8</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M2120.49,-735.44C2111.69,-749.63 2119.53,-764.11 2144,-764.11 2162.93,-764.11 2171.9,-755.45 2170.93,-744.96"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="2174.18,-743.67 2167.51,-735.44 2167.6,-746.03 2174.18,-743.67"/>
+<text text-anchor="middle" x="2144" y="-766.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n8&#45;&gt;n9 -->
+<g id="edge94" class="edge">
+<title>n8&#45;&gt;n9</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2156.7,-735.18C2177.95,-768.75 2223.09,-843.56 2249,-912.11 2302.79,-1054.39 2282.25,-1100.04 2328,-1245.11 2340.68,-1285.33 2359.41,-1330.4 2371.66,-1358.51"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2368.47,-1359.97 2375.7,-1367.72 2374.88,-1357.15 2368.47,-1359.97"/>
+<text text-anchor="middle" x="2288.5" y="-1097.91" font-family="Helvetica,sans-Serif" font-size="9.00">15</text>
+</g>
+<!-- n9&#45;&gt;n0 -->
+<g id="edge103" class="edge">
+<title>n9&#45;&gt;n0</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2397.67,-1404.38C2431.9,-1455.47 2537.64,-1596.11 2664.5,-1596.11 2664.5,-1596.11 2664.5,-1596.11 3094,-1596.11 3173.44,-1596.11 3257.4,-1642.04 3302.87,-1671.33"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3301.15,-1674.39 3311.44,-1676.95 3304.99,-1668.54 3301.15,-1674.39"/>
+<text text-anchor="middle" x="2811.5" y="-1598.91" font-family="Helvetica,sans-Serif" font-size="9.00">19</text>
+</g>
+<!-- n9&#45;&gt;n3 -->
+<g id="edge99" class="edge">
+<title>n9&#45;&gt;n3</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2327.7,-1378.69C2216.86,-1366.04 1963.61,-1346.85 1762,-1404.11 1739.41,-1410.52 1733.73,-1414.71 1716,-1430.11 1697.81,-1445.91 1702.85,-1459.46 1683,-1473.11 1674.32,-1479.08 1664.43,-1483.88 1654.32,-1487.74"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1652.87,-1484.54 1644.59,-1491.15 1655.19,-1491.14 1652.87,-1484.54"/>
+<text text-anchor="middle" x="1999.5" y="-1370.91" font-family="Helvetica,sans-Serif" font-size="9.00">3</text>
+</g>
+<!-- n9&#45;&gt;n4 -->
+<g id="edge102" class="edge">
+<title>n9&#45;&gt;n4</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2393.82,-1368.07C2405.22,-1341.46 2426.68,-1289.97 2442,-1245.11 2500.65,-1073.39 2547.76,-859.95 2563.69,-784.29"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2567.19,-784.66 2565.81,-774.15 2560.33,-783.22 2567.19,-784.66"/>
+<text text-anchor="middle" x="2478.5" y="-1142.91" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n9&#45;&gt;n9 -->
+<g id="edge93" class="edge">
+<title>n9&#45;&gt;n9</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M2369.98,-1404.44C2364.36,-1418.63 2369.37,-1433.11 2385,-1433.11 2396.97,-1433.11 2402.71,-1424.62 2402.22,-1414.28"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="2405.62,-1413.44 2400.02,-1404.44 2398.79,-1414.96 2405.62,-1413.44"/>
+<text text-anchor="middle" x="2385" y="-1435.91" font-family="Helvetica,sans-Serif" font-size="9.00">6</text>
+</g>
+<!-- n10&#45;&gt;n0 -->
+<g id="edge112" class="edge">
+<title>n10&#45;&gt;n0</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M3142.94,-863.2C3174.55,-880.13 3213.64,-906.64 3235,-942.11 3310.8,-1068.01 3331.92,-1545.1 3336.12,-1666.74"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3332.64,-1667.2 3336.47,-1677.08 3339.63,-1666.96 3332.64,-1667.2"/>
+<text text-anchor="middle" x="3231.5" y="-944.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n10&#45;&gt;n1 -->
+<g id="edge51" class="edge">
+<title>n10&#45;&gt;n1</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M3088.29,-818.84C3067.72,-699.01 2963.09,-136.11 2812.5,-136.11 1721.5,-136.11 1721.5,-136.11 1721.5,-136.11 1522.01,-136.11 466.55,-263.1 421,-300.11 383.88,-330.26 321.5,-663.81 303.5,-763.89"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="300.03,-763.41 301.71,-773.87 306.92,-764.64 300.03,-763.41"/>
+<text text-anchor="middle" x="1722.5" y="-139.91" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n10&#45;&gt;n4 -->
+<g id="edge61" class="edge">
+<title>n10&#45;&gt;n4</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M3055.21,-819.02C3021.03,-799.82 2968,-773.38 2918,-762.11 2821.64,-740.38 2706.37,-744.06 2636.07,-749.48"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2635.71,-746 2626.03,-750.3 2636.28,-752.98 2635.71,-746"/>
+<text text-anchor="middle" x="2811.5" y="-764.91" font-family="Helvetica,sans-Serif" font-size="9.00">6</text>
+</g>
+<!-- n10&#45;&gt;n10 -->
+<g id="edge50" class="edge">
+<title>n10&#45;&gt;n10</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M3069.41,-863.12C3062.76,-877.81 3070.63,-892.11 3093,-892.11 3110.3,-892.11 3118.93,-883.56 3118.87,-872.89"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="3122.28,-872.07 3116.59,-863.12 3115.46,-873.66 3122.28,-872.07"/>
+<text text-anchor="middle" x="3093" y="-894.91" font-family="Helvetica,sans-Serif" font-size="9.00">3</text>
+</g>
+<!-- n10&#45;&gt;n11 -->
+<g id="edge25" class="edge">
+<title>n10&#45;&gt;n11</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M3038.83,-863.11C3011.72,-875.23 2978.7,-891.39 2951,-909.11 2909.21,-935.83 2865.81,-973.43 2838.98,-998.03"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2836.5,-995.55 2831.53,-1004.91 2841.25,-1000.69 2836.5,-995.55"/>
+<text text-anchor="middle" x="2954.5" y="-911.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n11&#45;&gt;n1 -->
+<g id="edge59" class="edge">
+<title>n11&#45;&gt;n1</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2798.47,-1004.99C2776.86,-971.7 2731.26,-897.95 2705,-830.11 2603.95,-569.07 2722.7,-383.99 2482,-241.11 2284.67,-123.97 605.47,-237.62 421,-374.11 356.43,-421.88 314.68,-678.16 302.33,-764.04"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="298.84,-763.7 300.91,-774.09 305.77,-764.68 298.84,-763.7"/>
+<text text-anchor="middle" x="1581" y="-213.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n11&#45;&gt;n2 -->
+<g id="edge57" class="edge">
+<title>n11&#45;&gt;n2</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2704.93,-1018.68C2663.35,-1017.29 2615.19,-1016.11 2571.5,-1016.11 1580,-1016.11 1580,-1016.11 1580,-1016.11 1517.48,-1016.11 1447.74,-1028.85 1396.16,-1040.77"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1395.35,-1037.37 1386.42,-1043.06 1396.96,-1044.18 1395.35,-1037.37"/>
+<text text-anchor="middle" x="2144" y="-1018.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n11&#45;&gt;n3 -->
+<g id="edge69" class="edge">
+<title>n11&#45;&gt;n3</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2807.51,-1041.46C2797.84,-1095.36 2762.59,-1255.06 2672,-1346.11 2593.38,-1425.13 2550.32,-1419.81 2442,-1446.11 2157.29,-1515.23 1805.01,-1511.96 1655.07,-1506.6"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1654.75,-1503.09 1644.63,-1506.21 1654.49,-1510.08 1654.75,-1503.09"/>
+<text text-anchor="middle" x="2288.5" y="-1479.91" font-family="Helvetica,sans-Serif" font-size="9.00">4</text>
+</g>
+<!-- n11&#45;&gt;n4 -->
+<g id="edge43" class="edge">
+<title>n11&#45;&gt;n4</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2788.58,-1005.1C2757.86,-979.3 2701.03,-929.59 2659,-881.11 2631.53,-849.42 2604.57,-809.11 2587.99,-782.97"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2590.86,-780.96 2582.58,-774.35 2584.94,-784.68 2590.86,-780.96"/>
+<text text-anchor="middle" x="2665.5" y="-896.91" font-family="Helvetica,sans-Serif" font-size="9.00">6</text>
+</g>
+<!-- n11&#45;&gt;n5 -->
+<g id="edge81" class="edge">
+<title>n11&#45;&gt;n5</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2751.51,-1041.22C2733.73,-1049.6 2716.03,-1061.5 2705,-1078.11 2655.65,-1152.4 2705.86,-1395.59 2672,-1478.11 2659.9,-1507.59 2652.07,-1514.78 2626,-1533.11 2286.42,-1771.76 2138.55,-1773.11 1723.5,-1773.11 296.5,-1773.11 296.5,-1773.11 296.5,-1773.11 177.59,-1773.11 115.76,-1605.97 95.58,-1538.17"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="98.83,-1536.82 92.69,-1528.18 92.1,-1538.76 98.83,-1536.82"/>
+<text text-anchor="middle" x="1439.5" y="-1775.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n11&#45;&gt;n8 -->
+<g id="edge89" class="edge">
+<title>n11&#45;&gt;n8</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2800.39,-1004.87C2748.12,-910.66 2509.72,-482.93 2482,-467.11 2348.24,-390.78 2205.58,-611 2159.94,-690.04"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2156.77,-688.53 2154.86,-698.95 2162.85,-692 2156.77,-688.53"/>
+<text text-anchor="middle" x="2478.5" y="-469.91" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n11&#45;&gt;n10 -->
+<g id="edge60" class="edge">
+<title>n11&#45;&gt;n10</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2826.79,-1005.07C2850.03,-976.84 2898.7,-922.16 2951,-890.11 2967.37,-880.08 2986.07,-871.75 3004.39,-864.97"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3005.68,-868.23 3013.92,-861.57 3003.32,-861.64 3005.68,-868.23"/>
+<text text-anchor="middle" x="2954.5" y="-892.91" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n11&#45;&gt;n11 -->
+<g id="edge28" class="edge">
+<title>n11&#45;&gt;n11</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M2788.31,-1041.44C2779.64,-1055.63 2787.37,-1070.11 2811.5,-1070.11 2830.16,-1070.11 2839.01,-1061.45 2838.05,-1050.96"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="2841.32,-1049.7 2834.69,-1041.44 2834.72,-1052.03 2841.32,-1049.7"/>
+<text text-anchor="middle" x="2811.5" y="-1072.91" font-family="Helvetica,sans-Serif" font-size="9.00">4</text>
+</g>
+<!-- n24 -->
+<g id="node25" class="node">
+<title>n24</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M3183,-1070.11C3183,-1070.11 3003,-1070.11 3003,-1070.11 2997,-1070.11 2991,-1064.11 2991,-1058.11 2991,-1058.11 2991,-1046.11 2991,-1046.11 2991,-1040.11 2997,-1034.11 3003,-1034.11 3003,-1034.11 3183,-1034.11 3183,-1034.11 3189,-1034.11 3195,-1040.11 3195,-1046.11 3195,-1046.11 3195,-1058.11 3195,-1058.11 3195,-1064.11 3189,-1070.11 3183,-1070.11"/>
+<text text-anchor="middle" x="3093" y="-1055.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Cancel confirmation of prod. order</text>
+<text text-anchor="middle" x="3093" y="-1043.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(1)</text>
+</g>
+<!-- n11&#45;&gt;n24 -->
+<g id="edge52" class="edge">
+<title>n11&#45;&gt;n24</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2918.17,-1034.07C2938.63,-1036.19 2960.12,-1038.42 2980.75,-1040.57"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2980.5,-1044.06 2990.8,-1041.61 2981.22,-1037.09 2980.5,-1044.06"/>
+<text text-anchor="middle" x="2954.5" y="-1040.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n12&#45;&gt;n0 -->
+<g id="edge114" class="edge">
+<title>n12&#45;&gt;n0</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M3499.4,-1764.11C3480.05,-1760.44 3459.5,-1755.56 3441,-1749.11 3418.56,-1741.29 3395.02,-1729.12 3376.22,-1718.32"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3377.79,-1715.18 3367.39,-1713.15 3374.25,-1721.22 3377.79,-1715.18"/>
+<text text-anchor="middle" x="3447.5" y="-1754.91" font-family="Helvetica,sans-Serif" font-size="9.00">4</text>
+</g>
+<!-- n12&#45;&gt;n12 -->
+<g id="edge121" class="edge">
+<title>n12&#45;&gt;n12</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M3555.6,-1792.44C3547.78,-1806.63 3554.75,-1821.11 3576.5,-1821.11 3593.15,-1821.11 3601.14,-1812.62 3600.46,-1802.28"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="3603.71,-1800.95 3597.4,-1792.44 3597.03,-1803.03 3603.71,-1800.95"/>
+<text text-anchor="middle" x="3576.5" y="-1823.91" font-family="Helvetica,sans-Serif" font-size="9.00">3</text>
+</g>
+<!-- n13 -->
+<g id="node14" class="node">
+<title>n13</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M1102,-855.11C1102,-855.11 1010,-855.11 1010,-855.11 1004,-855.11 998,-849.11 998,-843.11 998,-843.11 998,-823.11 998,-823.11 998,-817.11 1004,-811.11 1010,-811.11 1010,-811.11 1102,-811.11 1102,-811.11 1108,-811.11 1114,-817.11 1114,-823.11 1114,-823.11 1114,-843.11 1114,-843.11 1114,-849.11 1108,-855.11 1102,-855.11"/>
+<text text-anchor="middle" x="1056" y="-842.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Reverse Backflush</text>
+<text text-anchor="middle" x="1056" y="-830.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">( With ALV)</text>
+<text text-anchor="middle" x="1056" y="-818.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(8)</text>
+</g>
+<!-- n13&#45;&gt;n1 -->
+<g id="edge20" class="edge">
+<title>n13&#45;&gt;n1</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M997.59,-844.67C885.11,-865.17 628.59,-901.36 421,-852.11 390.49,-844.87 358.76,-829.07 335.25,-815.49"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="336.73,-812.3 326.34,-810.23 333.17,-818.33 336.73,-812.3"/>
+<text text-anchor="middle" x="674.5" y="-879.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n13&#45;&gt;n2 -->
+<g id="edge38" class="edge">
+<title>n13&#45;&gt;n2</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1094.79,-855.19C1125.63,-874.04 1169.58,-902.84 1204,-933.11 1240.18,-964.93 1276.08,-1007.82 1297.53,-1034.97"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1294.79,-1037.15 1303.71,-1042.86 1300.3,-1032.83 1294.79,-1037.15"/>
+<text text-anchor="middle" x="1200.5" y="-935.91" font-family="Helvetica,sans-Serif" font-size="9.00">4</text>
+</g>
+<!-- n13&#45;&gt;n8 -->
+<g id="edge96" class="edge">
+<title>n13&#45;&gt;n8</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1114.16,-818.64C1187.71,-800.21 1319.53,-767.78 1433,-743.11 1676.51,-690.17 1743.81,-716.73 1993,-715.11 2012.83,-714.98 2034.13,-715.1 2054.28,-715.34"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2054.33,-718.84 2064.37,-715.47 2054.42,-711.84 2054.33,-718.84"/>
+<text text-anchor="middle" x="1581" y="-735.91" font-family="Helvetica,sans-Serif" font-size="9.00">10</text>
+</g>
+<!-- n13&#45;&gt;n13 -->
+<g id="edge15" class="edge">
+<title>n13&#45;&gt;n13</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M1031.38,-855.12C1024.45,-869.81 1032.66,-884.11 1056,-884.11 1074.05,-884.11 1083.05,-875.56 1083,-864.89"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="1086.39,-864.01 1080.62,-855.12 1079.59,-865.67 1086.39,-864.01"/>
+<text text-anchor="middle" x="1056" y="-886.91" font-family="Helvetica,sans-Serif" font-size="9.00">7</text>
+</g>
+<!-- n13&#45;&gt;n15 -->
+<g id="edge33" class="edge">
+<title>n13&#45;&gt;n15</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M997.78,-833.61C972.42,-833.81 942.22,-834.01 915,-834.11 806.19,-834.5 779.01,-827.22 671,-814.11 652.01,-811.8 631.64,-808.88 612.47,-805.92"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="612.99,-802.46 602.57,-804.37 611.91,-809.37 612.99,-802.46"/>
+<text text-anchor="middle" x="790" y="-836.91" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n14&#45;&gt;n0 -->
+<g id="edge124" class="edge">
+<title>n14&#45;&gt;n0</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M3535.92,-1668.75C3509.04,-1665.99 3472.75,-1663.98 3441,-1668.11 3429.76,-1669.57 3418,-1671.9 3406.62,-1674.6"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3405.6,-1671.25 3396.74,-1677.05 3407.29,-1678.04 3405.6,-1671.25"/>
+<text text-anchor="middle" x="3447.5" y="-1670.91" font-family="Helvetica,sans-Serif" font-size="9.00">5</text>
+</g>
+<!-- n14&#45;&gt;n14 -->
+<g id="edge123" class="edge">
+<title>n14&#45;&gt;n14</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M3555.6,-1692.44C3547.78,-1706.63 3554.75,-1721.11 3576.5,-1721.11 3593.15,-1721.11 3601.14,-1712.62 3600.46,-1702.28"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="3603.71,-1700.95 3597.4,-1692.44 3597.03,-1703.03 3603.71,-1700.95"/>
+<text text-anchor="middle" x="3576.5" y="-1723.91" font-family="Helvetica,sans-Serif" font-size="9.00">3</text>
+</g>
+<!-- n15&#45;&gt;n1 -->
+<g id="edge66" class="edge">
+<title>n15&#45;&gt;n1</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M456.14,-777.5C432.24,-774.34 405.49,-772.61 381,-775.11 373.62,-775.86 365.92,-776.98 358.32,-778.3"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="357.62,-774.87 348.42,-780.13 358.89,-781.75 357.62,-774.87"/>
+<text text-anchor="middle" x="384.5" y="-777.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n15&#45;&gt;n2 -->
+<g id="edge86" class="edge">
+<title>n15&#45;&gt;n2</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M583.36,-810.18C723.56,-858.1 1104.45,-988.29 1255.03,-1039.76"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1254.02,-1043.11 1264.61,-1043.03 1256.28,-1036.48 1254.02,-1043.11"/>
+<text text-anchor="middle" x="908.5" y="-926.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n15&#45;&gt;n8 -->
+<g id="edge97" class="edge">
+<title>n15&#45;&gt;n8</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M602.73,-783.32C615.32,-779.45 627.67,-773.94 638,-766.11 661.94,-747.95 654.46,-732.19 671,-707.11 687.05,-682.76 684.84,-667.99 711,-655.11 774,-624.09 798.79,-653.98 869,-655.11 1354.09,-662.87 1476.7,-648.7 1960,-691.11 1990.87,-693.82 2024.5,-698.18 2054.41,-702.57"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2053.99,-706.05 2064.4,-704.06 2055.02,-699.12 2053.99,-706.05"/>
+<text text-anchor="middle" x="1318.5" y="-662.91" font-family="Helvetica,sans-Serif" font-size="9.00">7</text>
+</g>
+<!-- n15&#45;&gt;n13 -->
+<g id="edge37" class="edge">
+<title>n15&#45;&gt;n13</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M602.65,-791.8C671.3,-792.13 777.41,-794.27 869,-803.11 908.56,-806.93 952.47,-813.88 987.69,-820.13"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="987.39,-823.63 997.85,-821.96 988.62,-816.74 987.39,-823.63"/>
+<text text-anchor="middle" x="790" y="-805.91" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n15&#45;&gt;n15 -->
+<g id="edge26" class="edge">
+<title>n15&#45;&gt;n15</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M505.99,-810.44C497.19,-824.63 505.03,-839.11 529.5,-839.11 548.43,-839.11 557.4,-830.45 556.43,-819.96"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="559.68,-818.67 553.01,-810.44 553.1,-821.03 559.68,-818.67"/>
+<text text-anchor="middle" x="529.5" y="-841.91" font-family="Helvetica,sans-Serif" font-size="9.00">3</text>
+</g>
+<!-- n21 -->
+<g id="node22" class="node">
+<title>n21</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M840.5,-706.11C840.5,-706.11 739.5,-706.11 739.5,-706.11 733.5,-706.11 727.5,-700.11 727.5,-694.11 727.5,-694.11 727.5,-682.11 727.5,-682.11 727.5,-676.11 733.5,-670.11 739.5,-670.11 739.5,-670.11 840.5,-670.11 840.5,-670.11 846.5,-670.11 852.5,-676.11 852.5,-682.11 852.5,-682.11 852.5,-694.11 852.5,-694.11 852.5,-700.11 846.5,-706.11 840.5,-706.11"/>
+<text text-anchor="middle" x="790" y="-691.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Collective Backflush</text>
+<text text-anchor="middle" x="790" y="-679.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(3)</text>
+</g>
+<!-- n15&#45;&gt;n21 -->
+<g id="edge27" class="edge">
+<title>n15&#45;&gt;n21</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M558.51,-774.09C586.14,-757.01 630.06,-731.72 671,-716.11 685.69,-710.51 701.84,-705.79 717.36,-701.92"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="718.53,-705.24 727.44,-699.5 716.9,-698.43 718.53,-705.24"/>
+<text text-anchor="middle" x="674.5" y="-718.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n16&#45;&gt;n0 -->
+<g id="edge115" class="edge">
+<title>n16&#45;&gt;n0</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1960.15,-1958.83C2014.09,-1961.51 2082.22,-1964.11 2143,-1964.11 2143,-1964.11 2143,-1964.11 3094,-1964.11 3160.64,-1964.11 3185.79,-1958.05 3235,-1913.11 3292.53,-1860.56 3320.37,-1768.9 3331.25,-1722.98"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3334.68,-1723.66 3333.49,-1713.13 3327.86,-1722.1 3334.68,-1723.66"/>
+<text text-anchor="middle" x="2570.5" y="-1966.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n16&#45;&gt;n5 -->
+<g id="edge80" class="edge">
+<title>n16&#45;&gt;n5</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1761.99,-1962.03C1708.79,-1966.14 1641.84,-1970.11 1582,-1970.11 296.5,-1970.11 296.5,-1970.11 296.5,-1970.11 105.92,-1970.11 88.66,-1638.51 87.79,-1538.39"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="91.29,-1538.13 87.75,-1528.14 84.29,-1538.15 91.29,-1538.13"/>
+<text text-anchor="middle" x="908.5" y="-1972.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n16&#45;&gt;n8 -->
+<g id="edge90" class="edge">
+<title>n16&#45;&gt;n8</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1873.26,-1934.94C1894.47,-1899.68 1940.03,-1818.83 1960,-1744.11 2005.25,-1574.77 1976.53,-1525.61 1993,-1351.11 2011.43,-1155.8 1981.55,-1099.69 2039,-912.11 2058.73,-847.68 2100.33,-779.88 2124.51,-743.66"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2127.56,-745.39 2130.26,-735.15 2121.76,-741.47 2127.56,-745.39"/>
+<text text-anchor="middle" x="1999.5" y="-1353.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n16&#45;&gt;n16 -->
+<g id="edge73" class="edge">
+<title>n16&#45;&gt;n16</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M1838.47,-1971.44C1830.04,-1985.63 1837.55,-2000.11 1861,-2000.11 1879.14,-2000.11 1887.74,-1991.45 1886.81,-1980.96"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="1890.1,-1979.76 1883.53,-1971.44 1883.48,-1982.03 1890.1,-1979.76"/>
+<text text-anchor="middle" x="1861" y="-2002.91" font-family="Helvetica,sans-Serif" font-size="9.00">7</text>
+</g>
+<!-- n25 -->
+<g id="node26" class="node">
+<title>n25</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M2222.5,-2051.11C2222.5,-2051.11 2065.5,-2051.11 2065.5,-2051.11 2059.5,-2051.11 2053.5,-2045.11 2053.5,-2039.11 2053.5,-2039.11 2053.5,-2027.11 2053.5,-2027.11 2053.5,-2021.11 2059.5,-2015.11 2065.5,-2015.11 2065.5,-2015.11 2222.5,-2015.11 2222.5,-2015.11 2228.5,-2015.11 2234.5,-2021.11 2234.5,-2027.11 2234.5,-2027.11 2234.5,-2039.11 2234.5,-2039.11 2234.5,-2045.11 2228.5,-2051.11 2222.5,-2051.11"/>
+<text text-anchor="middle" x="2144" y="-2036.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Cancel PM Order Confirmation</text>
+<text text-anchor="middle" x="2144" y="-2024.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(1)</text>
+</g>
+<!-- n16&#45;&gt;n25 -->
+<g id="edge74" class="edge">
+<title>n16&#45;&gt;n25</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1925.41,-1971.16C1968.24,-1983.35 2024.91,-1999.49 2069.68,-2012.23"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2068.76,-2015.61 2079.33,-2014.98 2070.67,-2008.88 2068.76,-2015.61"/>
+<text text-anchor="middle" x="1999.5" y="-1995.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n17&#45;&gt;n0 -->
+<g id="edge120" class="edge">
+<title>n17&#45;&gt;n0</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M3515.57,-1585.11C3491.66,-1593.38 3464.34,-1604.23 3441,-1617.11 3413.9,-1632.07 3386.19,-1653.75 3366.5,-1670.46"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="3364.14,-1667.87 3358.84,-1677.05 3368.7,-1673.18 3364.14,-1667.87"/>
+<text text-anchor="middle" x="3447.5" y="-1619.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n17&#45;&gt;n17 -->
+<g id="edge119" class="edge">
+<title>n17&#45;&gt;n17</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M3555.6,-1585.44C3547.78,-1599.63 3554.75,-1614.11 3576.5,-1614.11 3593.15,-1614.11 3601.14,-1605.62 3600.46,-1595.28"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="3603.71,-1593.95 3597.4,-1585.44 3597.03,-1596.03 3603.71,-1593.95"/>
+<text text-anchor="middle" x="3576.5" y="-1616.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n18 -->
+<g id="node19" class="node">
+<title>n18</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M857,-1194.11C857,-1194.11 723,-1194.11 723,-1194.11 717,-1194.11 711,-1188.11 711,-1182.11 711,-1182.11 711,-1170.11 711,-1170.11 711,-1164.11 717,-1158.11 723,-1158.11 723,-1158.11 857,-1158.11 857,-1158.11 863,-1158.11 869,-1164.11 869,-1170.11 869,-1170.11 869,-1182.11 869,-1182.11 869,-1188.11 863,-1194.11 857,-1194.11"/>
+<text text-anchor="middle" x="790" y="-1179.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Backflush KANBAN Orders</text>
+<text text-anchor="middle" x="790" y="-1167.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(4)</text>
+</g>
+<!-- n18&#45;&gt;n18 -->
+<g id="edge23" class="edge">
+<title>n18&#45;&gt;n18</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M771.39,-1194.44C764.42,-1208.63 770.63,-1223.11 790,-1223.11 804.83,-1223.11 811.94,-1214.62 811.34,-1204.28"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="814.66,-1203.14 808.61,-1194.44 807.91,-1205.01 814.66,-1203.14"/>
+<text text-anchor="middle" x="790" y="-1225.91" font-family="Helvetica,sans-Serif" font-size="9.00">3</text>
+</g>
+<!-- n22 -->
+<g id="node23" class="node">
+<title>n22</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M1152,-1194.11C1152,-1194.11 960,-1194.11 960,-1194.11 954,-1194.11 948,-1188.11 948,-1182.11 948,-1182.11 948,-1170.11 948,-1170.11 948,-1164.11 954,-1158.11 960,-1158.11 960,-1158.11 1152,-1158.11 1152,-1158.11 1158,-1158.11 1164,-1164.11 1164,-1170.11 1164,-1170.11 1164,-1182.11 1164,-1182.11 1164,-1188.11 1158,-1194.11 1152,-1194.11"/>
+<text text-anchor="middle" x="1056" y="-1179.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Kanban Board: Demand Source View</text>
+<text text-anchor="middle" x="1056" y="-1167.31" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(2)</text>
+</g>
+<!-- n18&#45;&gt;n22 -->
+<g id="edge31" class="edge">
+<title>n18&#45;&gt;n22</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M869.14,-1176.11C890.59,-1176.11 914.34,-1176.11 937.49,-1176.11"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="937.71,-1179.61 947.71,-1176.11 937.71,-1172.61 937.71,-1179.61"/>
+<text text-anchor="middle" x="908.5" y="-1178.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n19&#45;&gt;n7 -->
+<g id="edge12" class="edge">
+<title>n19&#45;&gt;n7</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2038.96,-1638.03C2023.49,-1639.04 2007.78,-1640.65 1993,-1643.11 1979.58,-1645.34 1951.97,-1653.57 1925.55,-1661.99"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1924.35,-1658.7 1915.9,-1665.09 1926.49,-1665.37 1924.35,-1658.7"/>
+<text text-anchor="middle" x="1999.5" y="-1645.91" font-family="Helvetica,sans-Serif" font-size="9.00">3</text>
+</g>
+<!-- n20&#45;&gt;n1 -->
+<g id="edge63" class="edge">
+<title>n20&#45;&gt;n1</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1527.82,-520.13C1475.73,-536.51 1393.05,-558.11 1319.5,-558.11 528.5,-558.11 528.5,-558.11 528.5,-558.11 413.87,-558.11 337.34,-702.7 309.84,-764.56"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="306.62,-763.18 305.85,-773.75 313.04,-765.97 306.62,-763.18"/>
+<text text-anchor="middle" x="908.5" y="-560.91" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n20&#45;&gt;n20 -->
+<g id="edge64" class="edge">
+<title>n20&#45;&gt;n20</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M1558.14,-520.44C1549.59,-534.63 1557.21,-549.11 1581,-549.11 1599.4,-549.11 1608.13,-540.45 1607.18,-529.96"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="1610.46,-528.73 1603.86,-520.44 1603.85,-531.03 1610.46,-528.73"/>
+<text text-anchor="middle" x="1581" y="-551.91" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n21&#45;&gt;n1 -->
+<g id="edge19" class="edge">
+<title>n21&#45;&gt;n1</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M727.43,-694.96C653.79,-703.92 527.15,-721.78 421,-749.11 398.58,-754.88 374.42,-762.95 353.54,-770.53"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="352.06,-767.35 343.88,-774.09 354.48,-773.92 352.06,-767.35"/>
+<text text-anchor="middle" x="529.5" y="-751.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n21&#45;&gt;n2 -->
+<g id="edge29" class="edge">
+<title>n21&#45;&gt;n2</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M852.88,-698.31C945.78,-714.63 1115.58,-748.58 1164,-786.11 1248.45,-851.56 1293.41,-977.32 1309.97,-1033.18"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1306.68,-1034.44 1312.82,-1043.08 1313.41,-1032.5 1306.68,-1034.44"/>
+<text text-anchor="middle" x="1056" y="-788.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n21&#45;&gt;n8 -->
+<g id="edge98" class="edge">
+<title>n21&#45;&gt;n8</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M852.51,-687.71C1026.44,-686.85 1536.68,-686.19 1960,-704.11 1990.73,-705.41 2024.33,-707.58 2054.24,-709.78"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2054.01,-713.27 2064.24,-710.52 2054.53,-706.29 2054.01,-713.27"/>
+<text text-anchor="middle" x="1439.5" y="-693.91" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n21&#45;&gt;n13 -->
+<g id="edge14" class="edge">
+<title>n21&#45;&gt;n13</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M823.43,-706.19C855.14,-723.85 904.82,-751.44 948,-775.11 966.54,-785.27 986.93,-796.35 1004.9,-806.07"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1003.59,-809.35 1014.05,-811.03 1006.92,-803.19 1003.59,-809.35"/>
+<text text-anchor="middle" x="908.5" y="-759.91" font-family="Helvetica,sans-Serif" font-size="9.00">3</text>
+</g>
+<!-- n21&#45;&gt;n15 -->
+<g id="edge34" class="edge">
+<title>n21&#45;&gt;n15</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M744.06,-706.19C699.83,-723.98 632.25,-751.17 584.99,-770.18"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="583.5,-767.01 575.53,-773.99 586.11,-773.51 583.5,-767.01"/>
+<text text-anchor="middle" x="674.5" y="-736.91" font-family="Helvetica,sans-Serif" font-size="9.00">2</text>
+</g>
+<!-- n21&#45;&gt;n21 -->
+<g id="edge13" class="edge">
+<title>n21&#45;&gt;n21</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M771.39,-706.44C764.42,-720.63 770.63,-735.11 790,-735.11 804.83,-735.11 811.94,-726.62 811.34,-716.28"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="814.66,-715.14 808.61,-706.44 807.91,-717.01 814.66,-715.14"/>
+<text text-anchor="middle" x="790" y="-737.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n22&#45;&gt;n2 -->
+<g id="edge45" class="edge">
+<title>n22&#45;&gt;n2</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1141.41,-1158.07C1162.33,-1152.27 1184.36,-1144.99 1204,-1136.11 1233.83,-1122.62 1264.63,-1101.75 1286.6,-1085.45"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1288.98,-1088.04 1294.86,-1079.23 1284.77,-1082.45 1288.98,-1088.04"/>
+<text text-anchor="middle" x="1200.5" y="-1140.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n22&#45;&gt;n22 -->
+<g id="edge32" class="edge">
+<title>n22&#45;&gt;n22</title>
+<path fill="none" stroke="#94a3b8" stroke-width="0.6" stroke-dasharray="5,2" d="M1032.49,-1194.44C1023.69,-1208.63 1031.53,-1223.11 1056,-1223.11 1074.93,-1223.11 1083.9,-1214.45 1082.93,-1203.96"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="0.6" points="1086.18,-1202.67 1079.51,-1194.44 1079.6,-1205.03 1086.18,-1202.67"/>
+<text text-anchor="middle" x="1056" y="-1225.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n23&#45;&gt;n5 -->
+<g id="edge78" class="edge">
+<title>n23&#45;&gt;n5</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M420.98,-156.43C406.05,-162.39 392.07,-170.67 381,-182.11 190.82,-378.62 104.91,-1306.87 90.29,-1481.68"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="86.8,-1481.4 89.46,-1491.66 93.77,-1481.98 86.8,-1481.4"/>
+<text text-anchor="middle" x="297.5" y="-475.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n24&#45;&gt;n11 -->
+<g id="edge53" class="edge">
+<title>n24&#45;&gt;n11</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M3022.22,-1034.06C3001.68,-1029.55 2979.06,-1025.36 2958,-1023.11 2948.39,-1022.08 2938.41,-1021.36 2928.37,-1020.88"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="2928.47,-1017.38 2918.33,-1020.47 2928.18,-1024.37 2928.47,-1017.38"/>
+<text text-anchor="middle" x="2954.5" y="-1025.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n25&#45;&gt;n5 -->
+<g id="edge75" class="edge">
+<title>n25&#45;&gt;n5</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M2053.49,-2037.92C1998.31,-2040.48 1926.07,-2043.11 1862,-2043.11 296.5,-2043.11 296.5,-2043.11 296.5,-2043.11 243.44,-2043.11 234.82,-2009.29 207,-1964.11 118.83,-1820.94 95.48,-1613.6 89.74,-1538.56"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="93.23,-1538.19 89.02,-1528.47 86.24,-1538.7 93.23,-1538.19"/>
+<text text-anchor="middle" x="1056" y="-2045.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n26&#45;&gt;n3 -->
+<g id="edge40" class="edge">
+<title>n26&#45;&gt;n3</title>
+<path fill="none" stroke="#64748b" stroke-width="0.6" d="M1815.58,-1600.06C1798.78,-1593.21 1779.5,-1585.32 1762,-1578.11 1722.81,-1561.94 1678.89,-1543.65 1644.24,-1529.17"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.6" points="1645.31,-1525.82 1634.73,-1525.2 1642.61,-1532.28 1645.31,-1525.82"/>
+<text text-anchor="middle" x="1722.5" y="-1565.91" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+</g>
+</svg>
+</div><h3>对象类型 <code>BELNR</code> 的流程<span class="muted"> · 8 个活动</span></h3><div class="diagram-container"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 2.43.0 (0)
+ -->
+<!-- Title: dfg_BELNR Pages: 1 -->
+<svg width="443pt" height="450pt"
+ viewBox="0.00 0.00 442.80 449.80" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(14.4 435.4)">
+<title>dfg_BELNR</title>
+<!-- n0 -->
+<g id="node1" class="node">
+<title>n0</title>
+<path fill="#1e40af" stroke="#1e40af" stroke-width="1.2" d="M391,-112C391,-112 275,-112 275,-112 269,-112 263,-106 263,-100 263,-100 263,-88 263,-88 263,-82 269,-76 275,-76 275,-76 391,-76 391,-76 397,-76 403,-82 403,-88 403,-88 403,-100 403,-100 403,-106 397,-112 391,-112"/>
+<text text-anchor="middle" x="333" y="-97.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#ffffff">Enter Incoming Invoice</text>
+<text text-anchor="middle" x="333" y="-85.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#ffffff">(4,125)</text>
+</g>
+<!-- n1 -->
+<g id="node2" class="node">
+<title>n1</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M167,-161C167,-161 12,-161 12,-161 6,-161 0,-155 0,-149 0,-149 0,-137 0,-137 0,-131 6,-125 12,-125 12,-125 167,-125 167,-125 173,-125 179,-131 179,-137 179,-137 179,-149 179,-149 179,-155 173,-161 167,-161"/>
+<text text-anchor="middle" x="89.5" y="-146.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Evaluated Receipt Settlement</text>
+<text text-anchor="middle" x="89.5" y="-134.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(64)</text>
+</g>
+<!-- n2 -->
+<g id="node3" class="node">
+<title>n2</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M126.5,-68C126.5,-68 52.5,-68 52.5,-68 46.5,-68 40.5,-62 40.5,-56 40.5,-56 40.5,-44 40.5,-44 40.5,-38 46.5,-32 52.5,-32 52.5,-32 126.5,-32 126.5,-32 132.5,-32 138.5,-38 138.5,-44 138.5,-44 138.5,-56 138.5,-56 138.5,-62 132.5,-68 126.5,-68"/>
+<text text-anchor="middle" x="89.5" y="-53.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Post Document</text>
+<text text-anchor="middle" x="89.5" y="-41.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(31)</text>
+</g>
+<!-- n2&#45;&gt;n0 -->
+<g id="edge4" class="edge">
+<title>n2&#45;&gt;n0</title>
+<path fill="none" stroke="#64748b" stroke-width="1.6" d="M138.5,-58.75C171.08,-64.68 214.92,-72.67 252.64,-79.54"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="1.6" points="252.12,-83 262.59,-81.35 253.38,-76.12 252.12,-83"/>
+<text text-anchor="middle" x="215.5" y="-75.8" font-family="Helvetica,sans-Serif" font-size="9.00">9</text>
+</g>
+<!-- n2&#45;&gt;n2 -->
+<g id="edge3" class="edge">
+<title>n2&#45;&gt;n2</title>
+<path fill="none" stroke="#94a3b8" stroke-width="3" stroke-dasharray="5,2" d="M68.93,-68.33C61.23,-82.52 68.09,-97 89.5,-97 105.89,-97 113.75,-88.51 113.09,-78.17"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="3" points="116.35,-76.87 110.07,-68.33 109.66,-78.92 116.35,-76.87"/>
+<text text-anchor="middle" x="89.5" y="-99.8" font-family="Helvetica,sans-Serif" font-size="9.00">21</text>
+</g>
+<!-- n7 -->
+<g id="node8" class="node">
+<title>n7</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M402,-36C402,-36 264,-36 264,-36 258,-36 252,-30 252,-24 252,-24 252,-12 252,-12 252,-6 258,0 264,0 264,0 402,0 402,0 408,0 414,-6 414,-12 414,-12 414,-24 414,-24 414,-30 408,-36 402,-36"/>
+<text text-anchor="middle" x="333" y="-21.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Post Foreign Currency Valn</text>
+<text text-anchor="middle" x="333" y="-9.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(1)</text>
+</g>
+<!-- n2&#45;&gt;n7 -->
+<g id="edge1" class="edge">
+<title>n2&#45;&gt;n7</title>
+<path fill="none" stroke="#64748b" stroke-width="0.7" d="M138.5,-43.64C167.92,-39.74 206.53,-34.63 241.52,-29.99"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.7" points="242.3,-33.42 251.76,-28.63 241.38,-26.48 242.3,-33.42"/>
+<text text-anchor="middle" x="215.5" y="-35.8" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+<!-- n3 -->
+<g id="node4" class="node">
+<title>n3</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M154.5,-226C154.5,-226 24.5,-226 24.5,-226 18.5,-226 12.5,-220 12.5,-214 12.5,-214 12.5,-202 12.5,-202 12.5,-196 18.5,-190 24.5,-190 24.5,-190 154.5,-190 154.5,-190 160.5,-190 166.5,-196 166.5,-202 166.5,-202 166.5,-214 166.5,-214 166.5,-220 160.5,-226 154.5,-226"/>
+<text text-anchor="middle" x="89.5" y="-211.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Cancel Invoice Document</text>
+<text text-anchor="middle" x="89.5" y="-199.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(13)</text>
+</g>
+<!-- n4 -->
+<g id="node5" class="node">
+<title>n4</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M118,-291C118,-291 61,-291 61,-291 55,-291 49,-285 49,-279 49,-279 49,-267 49,-267 49,-261 55,-255 61,-255 61,-255 118,-255 118,-255 124,-255 130,-261 130,-267 130,-267 130,-279 130,-279 130,-285 124,-291 118,-291"/>
+<text text-anchor="middle" x="89.5" y="-276.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Park Invoice</text>
+<text text-anchor="middle" x="89.5" y="-264.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(12)</text>
+</g>
+<!-- n5 -->
+<g id="node6" class="node">
+<title>n5</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M161,-356C161,-356 18,-356 18,-356 12,-356 6,-350 6,-344 6,-344 6,-332 6,-332 6,-326 12,-320 18,-320 18,-320 161,-320 161,-320 167,-320 173,-326 173,-332 173,-332 173,-344 173,-344 173,-350 167,-356 161,-356"/>
+<text text-anchor="middle" x="89.5" y="-341.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">GR/IR account maintenance</text>
+<text text-anchor="middle" x="89.5" y="-329.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(7)</text>
+</g>
+<!-- n6 -->
+<g id="node7" class="node">
+<title>n6</title>
+<path fill="#dbeafe" stroke="#1e40af" stroke-width="1.2" d="M140.5,-421C140.5,-421 38.5,-421 38.5,-421 32.5,-421 26.5,-415 26.5,-409 26.5,-409 26.5,-397 26.5,-397 26.5,-391 32.5,-385 38.5,-385 38.5,-385 140.5,-385 140.5,-385 146.5,-385 152.5,-391 152.5,-397 152.5,-397 152.5,-409 152.5,-409 152.5,-415 146.5,-421 140.5,-421"/>
+<text text-anchor="middle" x="89.5" y="-406.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">Settle Invoicing Plan</text>
+<text text-anchor="middle" x="89.5" y="-394.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0c4a6e">(4)</text>
+</g>
+<!-- n7&#45;&gt;n2 -->
+<g id="edge2" class="edge">
+<title>n7&#45;&gt;n2</title>
+<path fill="none" stroke="#64748b" stroke-width="0.7" d="M251.76,-13.27C238.44,-13.45 224.8,-14.24 212,-16 190.93,-18.89 168.36,-24.48 148.47,-30.31"/>
+<polygon fill="#64748b" stroke="#64748b" stroke-width="0.7" points="147.2,-27.03 138.63,-33.27 149.22,-33.74 147.2,-27.03"/>
+<text text-anchor="middle" x="215.5" y="-18.8" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+</g>
+</svg>
+</div><h3>对象类型 <code>BANFN</code> 的流程<span class="muted"> · 1 个活动</span></h3><div class="diagram-container"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 2.43.0 (0)
+ -->
+<!-- Title: dfg_BANFN Pages: 1 -->
+<svg width="199pt" height="104pt"
+ viewBox="0.00 0.00 198.80 103.80" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(14.4 89.4)">
+<title>dfg_BANFN</title>
+<!-- n0 -->
+<g id="node1" class="node">
+<title>n0</title>
+<path fill="#1e40af" stroke="#1e40af" stroke-width="1.2" d="M158,-36C158,-36 12,-36 12,-36 6,-36 0,-30 0,-24 0,-24 0,-12 0,-12 0,-6 6,0 12,0 12,0 158,0 158,0 164,0 170,-6 170,-12 170,-12 170,-24 170,-24 170,-30 164,-36 158,-36"/>
+<text text-anchor="middle" x="85" y="-21.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#ffffff">Create Purchase Requisition</text>
+<text text-anchor="middle" x="85" y="-9.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#ffffff">(200)</text>
+</g>
+<!-- n0&#45;&gt;n0 -->
+<g id="edge1" class="edge">
+<title>n0&#45;&gt;n0</title>
+<path fill="none" stroke="#94a3b8" stroke-width="3" stroke-dasharray="5,2" d="M57.24,-36.33C46.86,-50.52 56.11,-65 85,-65 107.57,-65 118.15,-56.17 116.75,-45.53"/>
+<polygon fill="#94a3b8" stroke="#94a3b8" stroke-width="3" points="119.95,-44.11 112.76,-36.33 113.53,-46.9 119.95,-44.11"/>
+<text text-anchor="middle" x="85" y="-67.8" font-family="Helvetica,sans-Serif" font-size="9.00">1</text>
+</g>
+</g>
+</svg>
+</div>
+</section>
+
+<section>
+  <h2>9. 对象中心 Petri 网(OCPN)结构</h2>
+  <p class="muted">OCPN 是对象中心流程的形式化模型。图中每个变迁绑定
+  (活动, 对象类型) 组合,但规模大时无法直接阅读,因此这里只给结构摘要。</p>
+  <div class="cards">
+    <div class="card"><div class="label">库所</div><div class="value">95</div></div>
+    <div class="card"><div class="label">变迁</div><div class="value">137</div></div>
+    <div class="card"><div class="label">可见变迁</div><div class="value">32</div></div>
+    <div class="card"><div class="label">静默变迁</div><div class="value">105</div></div>
+    <div class="card"><div class="label">弧</div><div class="value">432</div></div>
+  </div>
+</section>
+
+<footer>由 datamind OCEL 分析模块自动生成 · 数据源 P2P 采购到付款(OCEL 2.0 · RWTH Aachen 官方合集,CC-BY-4.0)</footer>
+</div>
+</body>
+</html>

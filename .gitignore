@@ -17,10 +17,6 @@ __pycache__/
 # - BPIC 2020、OCEL 官方合集:也可按 README 重新下载
 # - data/sim:由 `python -m src.sim_main` 重新生成
 
-# 分析与报告产物(每次运行带时间戳重新生成)
-reports/
-outputs/
-
 # 本地环境变量
 .env
 .env.local
