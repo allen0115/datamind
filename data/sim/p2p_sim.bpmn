@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_P2P" targetNamespace="http://bpmn.io/schema/bpmn">
+  <process id="purchase_requisition" name="采购申请流程" isExecutable="true">
+    <startEvent id="s_req" name="采购需求提出">
+    </startEvent>
+    <userTask id="n_submit" name="Submit Purchase Requisition">
+    </userTask>
+    <exclusiveGateway id="g_need_appr" name="是否需审批" />
+    <userTask id="n_mgr_appr" name="Approve Requisition by Manager">
+      <multiInstanceLoopCharacteristics isSequential="false">
+        <loopCardinality>3</loopCardinality>
+      </multiInstanceLoopCharacteristics>
+    </userTask>
+    <exclusiveGateway id="g_appr_result" name="审批结果" />
+    <userTask id="n_revise" name="Revise Requisition">
+    </userTask>
+    <serviceTask id="n_convert" name="Convert to Purchase Order">
+    </serviceTask>
+    <serviceTask id="n_cancel" name="Cancel Requisition">
+    </serviceTask>
+    <endEvent id="e_req_done" name="申请关闭">
+    </endEvent>
+    <endEvent id="e_req_drop" name="申请作废">
+    </endEvent>
+    <sequenceFlow id="flow_s_req_n_submit" sourceRef="s_req" targetRef="n_submit" />
+    <sequenceFlow id="flow_n_submit_g_need_appr" sourceRef="n_submit" targetRef="g_need_appr" />
+    <sequenceFlow id="flow_g_need_appr_n_mgr_appr" sourceRef="g_need_appr" targetRef="n_mgr_appr" />
+    <sequenceFlow id="flow_g_need_appr_n_convert" sourceRef="g_need_appr" targetRef="n_convert" />
+    <sequenceFlow id="flow_n_mgr_appr_g_appr_result" sourceRef="n_mgr_appr" targetRef="g_appr_result" />
+    <sequenceFlow id="flow_g_appr_result_n_convert" sourceRef="g_appr_result" targetRef="n_convert" />
+    <sequenceFlow id="flow_g_appr_result_n_revise" sourceRef="g_appr_result" targetRef="n_revise" name="reject" />
+    <sequenceFlow id="flow_g_appr_result_n_cancel" sourceRef="g_appr_result" targetRef="n_cancel" name="reject" />
+    <sequenceFlow id="flow_n_revise_n_submit" sourceRef="n_revise" targetRef="n_submit" />
+    <sequenceFlow id="flow_n_convert_e_req_done" sourceRef="n_convert" targetRef="e_req_done" />
+    <sequenceFlow id="flow_n_cancel_e_req_drop" sourceRef="n_cancel" targetRef="e_req_drop" />
+  </process>
+  <process id="purchase_order" name="采购订单流程" isExecutable="true">
+    <startEvent id="s_po" name="订单创建">
+    </startEvent>
+    <serviceTask id="n_create_po" name="Create Purchase Order">
+    </serviceTask>
+    <exclusiveGateway id="g_amount" name="金额是否超审批阈值" />
+    <userTask id="n_dir_appr" name="Approve Purchase Order by Director">
+    </userTask>
+    <exclusiveGateway id="g_dir_result" name="总监审批结果" />
+    <serviceTask id="n_revise_po" name="Revise Purchase Order">
+    </serviceTask>
+    <serviceTask id="n_send_po" name="Send Order to Supplier">
+    </serviceTask>
+    <serviceTask id="n_cancel_po" name="Cancel Purchase Order">
+    </serviceTask>
+    <endEvent id="e_po_done" name="订单生效">
+    </endEvent>
+    <endEvent id="e_po_drop" name="订单取消">
+    </endEvent>
+    <sequenceFlow id="flow_s_po_n_create_po" sourceRef="s_po" targetRef="n_create_po" />
+    <sequenceFlow id="flow_n_create_po_g_amount" sourceRef="n_create_po" targetRef="g_amount" />
+    <sequenceFlow id="flow_g_amount_n_dir_appr" sourceRef="g_amount" targetRef="n_dir_appr" />
+    <sequenceFlow id="flow_g_amount_n_send_po" sourceRef="g_amount" targetRef="n_send_po" />
+    <sequenceFlow id="flow_n_dir_appr_g_dir_result" sourceRef="n_dir_appr" targetRef="g_dir_result" />
+    <sequenceFlow id="flow_g_dir_result_n_send_po" sourceRef="g_dir_result" targetRef="n_send_po" />
+    <sequenceFlow id="flow_g_dir_result_n_revise_po" sourceRef="g_dir_result" targetRef="n_revise_po" name="reject" />
+    <sequenceFlow id="flow_g_dir_result_n_cancel_po" sourceRef="g_dir_result" targetRef="n_cancel_po" name="reject" />
+    <sequenceFlow id="flow_n_revise_po_n_create_po" sourceRef="n_revise_po" targetRef="n_create_po" />
+    <sequenceFlow id="flow_n_send_po_e_po_done" sourceRef="n_send_po" targetRef="e_po_done" />
+    <sequenceFlow id="flow_n_cancel_po_e_po_drop" sourceRef="n_cancel_po" targetRef="e_po_drop" />
+  </process>
+  <process id="goods_receipt" name="收货质检流程" isExecutable="true">
+    <startEvent id="s_gr" name="供应商到货">
+    </startEvent>
+    <serviceTask id="n_post_gr" name="Post Goods Receipt">
+    </serviceTask>
+    <userTask id="n_inspect" name="Quality Inspection">
+    </userTask>
+    <exclusiveGateway id="g_qc" name="质检是否合格" />
+    <serviceTask id="n_putaway" name="Putaway to Warehouse">
+    </serviceTask>
+    <serviceTask id="n_return" name="Return to Supplier">
+    </serviceTask>
+    <endEvent id="e_gr_done" name="收货完成">
+    </endEvent>
+    <sequenceFlow id="flow_s_gr_n_post_gr" sourceRef="s_gr" targetRef="n_post_gr" />
+    <sequenceFlow id="flow_n_post_gr_n_inspect" sourceRef="n_post_gr" targetRef="n_inspect" />
+    <sequenceFlow id="flow_n_inspect_g_qc" sourceRef="n_inspect" targetRef="g_qc" />
+    <sequenceFlow id="flow_g_qc_n_putaway" sourceRef="g_qc" targetRef="n_putaway" />
+    <sequenceFlow id="flow_g_qc_n_return" sourceRef="g_qc" targetRef="n_return" name="reject" />
+    <sequenceFlow id="flow_n_putaway_e_gr_done" sourceRef="n_putaway" targetRef="e_gr_done" />
+    <sequenceFlow id="flow_n_return_e_gr_done" sourceRef="n_return" targetRef="e_gr_done" />
+  </process>
+  <process id="invoice_verification" name="发票校验流程" isExecutable="true">
+    <startEvent id="s_inv" name="收到供应商发票">
+    </startEvent>
+    <userTask id="n_enter_inv" name="Enter Incoming Invoice">
+    </userTask>
+    <serviceTask id="n_match" name="Three-Way Match">
+    </serviceTask>
+    <exclusiveGateway id="g_match" name="三单匹配结果" />
+    <userTask id="n_park" name="Park Invoice">
+    </userTask>
+    <userTask id="n_handle_exc" name="Handle Invoice Exception">
+    </userTask>
+    <userTask id="n_appr_inv" name="Approve Invoice">
+      <multiInstanceLoopCharacteristics isSequential="false">
+        <loopCardinality>2</loopCardinality>
+      </multiInstanceLoopCharacteristics>
+    </userTask>
+    <serviceTask id="n_pay" name="Post Payment">
+    </serviceTask>
+    <serviceTask id="n_clear" name="Clear Invoice">
+    </serviceTask>
+    <endEvent id="e_inv_done" name="发票关闭">
+    </endEvent>
+    <sequenceFlow id="flow_s_inv_n_enter_inv" sourceRef="s_inv" targetRef="n_enter_inv" />
+    <sequenceFlow id="flow_n_enter_inv_n_match" sourceRef="n_enter_inv" targetRef="n_match" />
+    <sequenceFlow id="flow_n_match_g_match" sourceRef="n_match" targetRef="g_match" />
+    <sequenceFlow id="flow_g_match_n_appr_inv" sourceRef="g_match" targetRef="n_appr_inv" />
+    <sequenceFlow id="flow_g_match_n_park" sourceRef="g_match" targetRef="n_park" name="reject" />
+    <sequenceFlow id="flow_n_park_n_handle_exc" sourceRef="n_park" targetRef="n_handle_exc" />
+    <sequenceFlow id="flow_n_handle_exc_n_match" sourceRef="n_handle_exc" targetRef="n_match" />
+    <sequenceFlow id="flow_n_appr_inv_n_pay" sourceRef="n_appr_inv" targetRef="n_pay" />
+    <sequenceFlow id="flow_n_pay_n_clear" sourceRef="n_pay" targetRef="n_clear" />
+    <sequenceFlow id="flow_n_clear_e_inv_done" sourceRef="n_clear" targetRef="e_inv_done" />
+  </process>
+  <bpmndi:BPMNDiagram id="Diagram_P2P">
+    <bpmndi:BPMNPlane id="Plane_purchase_requisition" bpmnElement="purchase_requisition">
+      <bpmndi:BPMNShape id="Shape_e_req_done" bpmnElement="e_req_done"><dc:Bounds x="980" y="222" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_e_req_drop" bpmnElement="e_req_drop"><dc:Bounds x="1440" y="102" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_g_appr_result" bpmnElement="g_appr_result"><dc:Bounds x="980" y="95" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_g_need_appr" bpmnElement="g_need_appr"><dc:Bounds x="520" y="95" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_cancel" bpmnElement="n_cancel"><dc:Bounds x="1210" y="200" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_convert" bpmnElement="n_convert"><dc:Bounds x="750" y="200" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_mgr_appr" bpmnElement="n_mgr_appr"><dc:Bounds x="750" y="80" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_revise" bpmnElement="n_revise"><dc:Bounds x="1210" y="80" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_submit" bpmnElement="n_submit"><dc:Bounds x="290" y="80" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_s_req" bpmnElement="s_req"><dc:Bounds x="60" y="102" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_flow_s_req_n_submit" bpmnElement="flow_s_req_n_submit"><di:waypoint x="96" y="120" /><di:waypoint x="290" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_submit_g_need_appr" bpmnElement="flow_n_submit_g_need_appr"><di:waypoint x="450" y="120" /><di:waypoint x="520" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_g_need_appr_n_mgr_appr" bpmnElement="flow_g_need_appr_n_mgr_appr"><di:waypoint x="570" y="120" /><di:waypoint x="750" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_g_need_appr_n_convert" bpmnElement="flow_g_need_appr_n_convert"><di:waypoint x="570" y="120" /><di:waypoint x="600" y="120" /><di:waypoint x="600" y="240" /><di:waypoint x="750" y="240" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_mgr_appr_g_appr_result" bpmnElement="flow_n_mgr_appr_g_appr_result"><di:waypoint x="910" y="120" /><di:waypoint x="980" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_g_appr_result_n_convert" bpmnElement="flow_g_appr_result_n_convert"><di:waypoint x="1005" y="145" /><di:waypoint x="1005" y="340" /><di:waypoint x="830" y="340" /><di:waypoint x="830" y="280" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_g_appr_result_n_revise" bpmnElement="flow_g_appr_result_n_revise"><di:waypoint x="1030" y="120" /><di:waypoint x="1210" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_g_appr_result_n_cancel" bpmnElement="flow_g_appr_result_n_cancel"><di:waypoint x="1030" y="120" /><di:waypoint x="1060" y="120" /><di:waypoint x="1060" y="240" /><di:waypoint x="1210" y="240" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_revise_n_submit" bpmnElement="flow_n_revise_n_submit"><di:waypoint x="1290" y="160" /><di:waypoint x="1290" y="340" /><di:waypoint x="370" y="340" /><di:waypoint x="370" y="160" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_convert_e_req_done" bpmnElement="flow_n_convert_e_req_done"><di:waypoint x="910" y="240" /><di:waypoint x="980" y="240" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_cancel_e_req_drop" bpmnElement="flow_n_cancel_e_req_drop"><di:waypoint x="1370" y="240" /><di:waypoint x="1400" y="240" /><di:waypoint x="1400" y="120" /><di:waypoint x="1440" y="120" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+    <bpmndi:BPMNPlane id="Plane_purchase_order" bpmnElement="purchase_order">
+      <bpmndi:BPMNShape id="Shape_e_po_done" bpmnElement="e_po_done"><dc:Bounds x="980" y="222" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_e_po_drop" bpmnElement="e_po_drop"><dc:Bounds x="1440" y="102" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_g_amount" bpmnElement="g_amount"><dc:Bounds x="520" y="95" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_g_dir_result" bpmnElement="g_dir_result"><dc:Bounds x="980" y="95" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_cancel_po" bpmnElement="n_cancel_po"><dc:Bounds x="1210" y="200" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_create_po" bpmnElement="n_create_po"><dc:Bounds x="290" y="80" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_dir_appr" bpmnElement="n_dir_appr"><dc:Bounds x="750" y="80" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_revise_po" bpmnElement="n_revise_po"><dc:Bounds x="1210" y="80" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_send_po" bpmnElement="n_send_po"><dc:Bounds x="750" y="200" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_s_po" bpmnElement="s_po"><dc:Bounds x="60" y="102" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_flow_s_po_n_create_po" bpmnElement="flow_s_po_n_create_po"><di:waypoint x="96" y="120" /><di:waypoint x="290" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_create_po_g_amount" bpmnElement="flow_n_create_po_g_amount"><di:waypoint x="450" y="120" /><di:waypoint x="520" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_g_amount_n_dir_appr" bpmnElement="flow_g_amount_n_dir_appr"><di:waypoint x="570" y="120" /><di:waypoint x="750" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_g_amount_n_send_po" bpmnElement="flow_g_amount_n_send_po"><di:waypoint x="570" y="120" /><di:waypoint x="600" y="120" /><di:waypoint x="600" y="240" /><di:waypoint x="750" y="240" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_dir_appr_g_dir_result" bpmnElement="flow_n_dir_appr_g_dir_result"><di:waypoint x="910" y="120" /><di:waypoint x="980" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_g_dir_result_n_send_po" bpmnElement="flow_g_dir_result_n_send_po"><di:waypoint x="1005" y="145" /><di:waypoint x="1005" y="340" /><di:waypoint x="830" y="340" /><di:waypoint x="830" y="280" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_g_dir_result_n_revise_po" bpmnElement="flow_g_dir_result_n_revise_po"><di:waypoint x="1030" y="120" /><di:waypoint x="1210" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_g_dir_result_n_cancel_po" bpmnElement="flow_g_dir_result_n_cancel_po"><di:waypoint x="1030" y="120" /><di:waypoint x="1060" y="120" /><di:waypoint x="1060" y="240" /><di:waypoint x="1210" y="240" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_revise_po_n_create_po" bpmnElement="flow_n_revise_po_n_create_po"><di:waypoint x="1290" y="160" /><di:waypoint x="1290" y="340" /><di:waypoint x="370" y="340" /><di:waypoint x="370" y="160" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_send_po_e_po_done" bpmnElement="flow_n_send_po_e_po_done"><di:waypoint x="910" y="240" /><di:waypoint x="980" y="240" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_cancel_po_e_po_drop" bpmnElement="flow_n_cancel_po_e_po_drop"><di:waypoint x="1370" y="240" /><di:waypoint x="1400" y="240" /><di:waypoint x="1400" y="120" /><di:waypoint x="1440" y="120" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+    <bpmndi:BPMNPlane id="Plane_goods_receipt" bpmnElement="goods_receipt">
+      <bpmndi:BPMNShape id="Shape_e_gr_done" bpmnElement="e_gr_done"><dc:Bounds x="1210" y="102" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_g_qc" bpmnElement="g_qc"><dc:Bounds x="750" y="95" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_inspect" bpmnElement="n_inspect"><dc:Bounds x="520" y="80" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_post_gr" bpmnElement="n_post_gr"><dc:Bounds x="290" y="80" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_putaway" bpmnElement="n_putaway"><dc:Bounds x="980" y="80" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_return" bpmnElement="n_return"><dc:Bounds x="980" y="200" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_s_gr" bpmnElement="s_gr"><dc:Bounds x="60" y="102" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_flow_s_gr_n_post_gr" bpmnElement="flow_s_gr_n_post_gr"><di:waypoint x="96" y="120" /><di:waypoint x="290" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_post_gr_n_inspect" bpmnElement="flow_n_post_gr_n_inspect"><di:waypoint x="450" y="120" /><di:waypoint x="520" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_inspect_g_qc" bpmnElement="flow_n_inspect_g_qc"><di:waypoint x="680" y="120" /><di:waypoint x="750" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_g_qc_n_putaway" bpmnElement="flow_g_qc_n_putaway"><di:waypoint x="800" y="120" /><di:waypoint x="980" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_g_qc_n_return" bpmnElement="flow_g_qc_n_return"><di:waypoint x="800" y="120" /><di:waypoint x="830" y="120" /><di:waypoint x="830" y="240" /><di:waypoint x="980" y="240" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_putaway_e_gr_done" bpmnElement="flow_n_putaway_e_gr_done"><di:waypoint x="1140" y="120" /><di:waypoint x="1210" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_return_e_gr_done" bpmnElement="flow_n_return_e_gr_done"><di:waypoint x="1140" y="240" /><di:waypoint x="1170" y="240" /><di:waypoint x="1170" y="120" /><di:waypoint x="1210" y="120" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+    <bpmndi:BPMNPlane id="Plane_invoice_verification" bpmnElement="invoice_verification">
+      <bpmndi:BPMNShape id="Shape_e_inv_done" bpmnElement="e_inv_done"><dc:Bounds x="1670" y="102" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_g_match" bpmnElement="g_match"><dc:Bounds x="750" y="95" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_appr_inv" bpmnElement="n_appr_inv"><dc:Bounds x="980" y="200" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_clear" bpmnElement="n_clear"><dc:Bounds x="1440" y="80" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_enter_inv" bpmnElement="n_enter_inv"><dc:Bounds x="290" y="80" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_handle_exc" bpmnElement="n_handle_exc"><dc:Bounds x="1210" y="80" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_match" bpmnElement="n_match"><dc:Bounds x="520" y="80" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_park" bpmnElement="n_park"><dc:Bounds x="980" y="80" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_n_pay" bpmnElement="n_pay"><dc:Bounds x="1210" y="200" width="160" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_s_inv" bpmnElement="s_inv"><dc:Bounds x="60" y="102" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_flow_s_inv_n_enter_inv" bpmnElement="flow_s_inv_n_enter_inv"><di:waypoint x="96" y="120" /><di:waypoint x="290" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_enter_inv_n_match" bpmnElement="flow_n_enter_inv_n_match"><di:waypoint x="450" y="120" /><di:waypoint x="520" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_match_g_match" bpmnElement="flow_n_match_g_match"><di:waypoint x="680" y="120" /><di:waypoint x="750" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_g_match_n_appr_inv" bpmnElement="flow_g_match_n_appr_inv"><di:waypoint x="800" y="120" /><di:waypoint x="830" y="120" /><di:waypoint x="830" y="240" /><di:waypoint x="980" y="240" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_g_match_n_park" bpmnElement="flow_g_match_n_park"><di:waypoint x="800" y="120" /><di:waypoint x="980" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_park_n_handle_exc" bpmnElement="flow_n_park_n_handle_exc"><di:waypoint x="1140" y="120" /><di:waypoint x="1210" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_handle_exc_n_match" bpmnElement="flow_n_handle_exc_n_match"><di:waypoint x="1290" y="160" /><di:waypoint x="1290" y="340" /><di:waypoint x="600" y="340" /><di:waypoint x="600" y="160" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_appr_inv_n_pay" bpmnElement="flow_n_appr_inv_n_pay"><di:waypoint x="1140" y="240" /><di:waypoint x="1210" y="240" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_pay_n_clear" bpmnElement="flow_n_pay_n_clear"><di:waypoint x="1370" y="240" /><di:waypoint x="1400" y="240" /><di:waypoint x="1400" y="120" /><di:waypoint x="1440" y="120" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_flow_n_clear_e_inv_done" bpmnElement="flow_n_clear_e_inv_done"><di:waypoint x="1600" y="120" /><di:waypoint x="1670" y="120" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

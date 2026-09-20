@@ -13,11 +13,9 @@ __pycache__/
 .DS_Store
 *.swp
 
-# 数据集(外部下载 / 本地生成,不入库)
-# - BPIC 2020、OCEL 官方合集:下载方式见 README
+# 数据集(整体入库,便于克隆后直接复现分析)
+# - BPIC 2020、OCEL 官方合集:也可按 README 重新下载
 # - data/sim:由 `python -m src.sim_main` 重新生成
-data/*
-!data/.gitkeep
 
 # 分析与报告产物(每次运行带时间戳重新生成)
 reports/

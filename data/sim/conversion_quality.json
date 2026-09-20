@@ -1,0 +1,80 @@
+{
+  "num_events": 3415,
+  "num_objects": 2083,
+  "num_object_types": 9,
+  "num_relations": 13277,
+  "avg_objects_per_event": 3.89,
+  "isolated_events": 0,
+  "isolated_pct": 0.0,
+  "timestamp_unique": 3415,
+  "timestamp_unique_pct": 100.0,
+  "dangling_relations": 0,
+  "object_types": [
+    {
+      "object_type": "po_item",
+      "num_objects": 545,
+      "num_events": 247,
+      "avg_events_per_object": 1.19,
+      "max_events_per_object": 5
+    },
+    {
+      "object_type": "gr_item",
+      "num_objects": 452,
+      "num_events": 269,
+      "avg_events_per_object": 1.0,
+      "max_events_per_object": 1
+    },
+    {
+      "object_type": "goods_receipt",
+      "num_objects": 269,
+      "num_events": 807,
+      "avg_events_per_object": 3.0,
+      "max_events_per_object": 3
+    },
+    {
+      "object_type": "invoice",
+      "num_objects": 242,
+      "num_events": 1360,
+      "avg_events_per_object": 5.62,
+      "max_events_per_object": 11
+    },
+    {
+      "object_type": "purchase_order",
+      "num_objects": 213,
+      "num_events": 2773,
+      "avg_events_per_object": 13.02,
+      "max_events_per_object": 23
+    },
+    {
+      "object_type": "purchase_requisition",
+      "num_objects": 200,
+      "num_events": 1248,
+      "avg_events_per_object": 6.24,
+      "max_events_per_object": 12
+    },
+    {
+      "object_type": "employee",
+      "num_objects": 90,
+      "num_events": 3415,
+      "avg_events_per_object": 43.7,
+      "max_events_per_object": 158
+    },
+    {
+      "object_type": "material",
+      "num_objects": 60,
+      "num_events": 1449,
+      "avg_events_per_object": 24.15,
+      "max_events_per_object": 49
+    },
+    {
+      "object_type": "supplier",
+      "num_objects": 12,
+      "num_events": 606,
+      "avg_events_per_object": 50.5,
+      "max_events_per_object": 90
+    }
+  ],
+  "dropped_unknown_objects": 0,
+  "unreferenced_objects": 0,
+  "unreferenced_by_type": {}
+}
