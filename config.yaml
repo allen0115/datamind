@@ -1,0 +1,72 @@
+# datamind 全局配置
+
+datasets:
+  domestic_declarations:
+    xes_file: "data/DomesticDeclarations.xes"
+    description: "BPIC 2020 国内费用报销流程(TU/e)"
+    case_filter:
+      # 可选:按 case id 前缀过滤采样,加速 PoC
+      prefix: ""
+      # 可选:最多保留多少个 case,None 表示全部(全量 10500 cases)
+      max_cases: null
+
+  travel_expenses:
+    xes_file: "data/TravelExpenses.xes"
+    description: "BPIC 2020 差旅报销流程"
+    case_filter:
+      prefix: ""
+      max_cases: null
+
+  p2p_sim:
+    xes_file: "data/sim/p2p_sim_instance.xes"
+    description: "BPMN 模拟 P2P 采购到付款(case=流程实例,由 src/sim_main.py 生成)"
+    case_filter:
+      prefix: ""
+      max_cases: null
+
+# ------------------------------------------------------------------
+# OCEL 2.0 数据集(对象中心流程挖掘)
+# ------------------------------------------------------------------
+ocel_datasets:
+  p2p_sim:
+    path: "data/sim/p2p_sim.jsonocel"
+    description: "BPMN 模拟 P2P 采购到付款(OCEL 2.0,由 src/sim_main.py 从 BPM 引擎模拟表转换而来)"
+    max_objects: null
+    top_dfgs: 4
+    min_trigger_count: 5
+    # 该数据集时间戳由模拟器按秒推进生成,唯一率 100%,时延可用于 SLA 结论
+    timestamp_warning: ""
+
+  p2p:
+    path: "data/ocel/p2p.jsonocel"
+    description: "P2P 采购到付款(OCEL 2.0 · RWTH Aachen 官方合集,CC-BY-4.0)"
+    # 最多加载多少对象,None 表示全量(全量 74,489 对象)
+    max_objects: null
+    # 渲染前 N 个主要对象类型的流程 DFG
+    top_dfgs: 4
+    # 跨流程触发关系的最小出现次数阈值
+    min_trigger_count: 5
+    # 时间戳可靠性提示(写进报告)。该数据集的时间戳由模拟器生成,
+    # 跨度过大且大量重复,时延结论不可信 —— 接入真实日志后可删除此项。
+    timestamp_warning: "本数据集绝对时间戳由模拟器生成(跨度 1994–2020,不合业务常理),且 24,854 个事件中仅 10,175 个唯一时间戳(约 59% 重复)。因此「触发次数」可靠,但时延数据不可用于 SLA 结论。"
+
+# 流程发现算法
+discovery:
+  algorithm: "inductive"  # inductive | alpha | heuristic
+  noise_threshold: 0.2     # Inductive Miner 的噪声过滤,0-1
+  variant: "im"            # im | imf
+
+# 合规检查
+conformance:
+  method: "token_replay"   # token_replay | alignments
+
+# 性能分析
+performance:
+  sla_days: 14             # 超过此天数视为 SLA 偏离
+  bottleneck_top_n: 10     # 展示 Top N 瓶颈节点
+
+# 报告输出
+report:
+  output_dir: "reports"
+  title: "BPM 流程审批系统分析报告"
+  ocel_title: "OCEL 对象中心流程分析报告(跨流程关系挖掘)"

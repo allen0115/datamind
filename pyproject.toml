@@ -1,0 +1,39 @@
+[project]
+name = "datamind"
+version = "0.1.0"
+description = "BPM 流程审批系统 PoC：基于 BPIC 2020 的流程发现、合规检查、性能瓶颈分析与 HTML 报告生成。"
+requires-python = ">=3.12"
+# 依赖源（单一事实来源）：uv 据此解析并生成 uv.lock 锁定精确版本。
+# 仅运行所需；开发/测试依赖见下方 [dependency-groups].dev。
+dependencies = [
+    "pm4py>=2.7.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "pyyaml>=6.0",
+    "graphviz>=0.20",
+]
+
+[dependency-groups]
+# 开发/测试依赖：`uv sync` 默认安装；生产环境用 `uv sync --no-dev` 排除。
+dev = [
+    "pytest>=8.0",
+    # 类型存根：仅开发期用于静态检查（basedpyright/mypy），运行时不需要。
+    "pandas-stubs>=2.0.0",
+    "types-PyYAML>=6.0",
+]
+
+[tool.uv]
+package = false  # 本项目是应用而非可分发包，无需构建/安装自身
+# 注意：graphviz 只是 Python 绑定，渲染 SVG 还需系统安装 graphviz 二进制：
+#   macOS: brew install graphviz
+#   Ubuntu: apt-get install graphviz
+# 图表由 CDN 加载（Chart.js），无需额外依赖。
+
+# pytest 配置集中到 pyproject.toml（PEP 518），无需独立 pytest.ini。
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+# 源码以 `python -m src.main` / `from tests.xxx import ...` 方式运行，需把仓库根加入 sys.path。
+pythonpath = ["."]

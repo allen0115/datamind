@@ -1,0 +1,28 @@
+# Python / 虚拟环境
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 工具与环境缓存
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+.DS_Store
+*.swp
+
+# 数据集(外部下载 / 本地生成,不入库)
+# - BPIC 2020、OCEL 官方合集:下载方式见 README
+# - data/sim:由 `python -m src.sim_main` 重新生成
+data/*
+!data/.gitkeep
+
+# 分析与报告产物(每次运行带时间戳重新生成)
+reports/
+outputs/
+
+# 本地环境变量
+.env
+.env.local
