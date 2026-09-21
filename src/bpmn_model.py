@@ -13,9 +13,10 @@ business_key,它是「流程实例 → 业务对象」的唯一原生线索。
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from xml.sax.saxutils import escape
+
+from pydantic import BaseModel, Field
 
 # 节点类型
 START_EVENT = "startEvent"
@@ -34,35 +35,32 @@ _NS_DC = "http://www.omg.org/spec/DD/20100524/DC"
 _NS_DI = "http://www.omg.org/spec/DD/20100524/DI"
 
 
-@dataclass(frozen=True)
-class Node:
+class Node(BaseModel):
     """BPMN 流程中的一个节点。"""
 
     id: str
     name: str
     kind: str = USER_TASK
-    role: str = ""                 # 执行角色,模拟器据此挑人
-    multi_instance: bool = False   # 是否会签(多实例)
+    role: str = ""                       # 执行角色,模拟器据此挑人
+    multi_instance: bool = False         # 是否会签(多实例)
     mi_min: int = 2
     mi_max: int = 3
-    reject_prob: float = 0.0       # 驳回/不通过概率(0 表示该节点不产生结果分支)
-    duration_mean: float = 30.0    # 处理时长均值(分钟,对数正态)
+    reject_prob: float = Field(default=0.0, ge=0.0, le=1.0)   # 驳回/不通过概率
+    duration_mean: float = 30.0          # 处理时长均值(分钟,对数正态)
     duration_sigma: float = 0.7
 
 
-@dataclass(frozen=True)
-class Flow:
+class Flow(BaseModel):
     """BPMN 顺序流。"""
 
     src: str
     tgt: str
-    weight: float = 1.0
-    when: str = ""      # "" | "approve" | "reject"
-    loop: bool = False  # 返工回流边(驳回后回到前面的活动)
+    weight: float = Field(default=1.0, gt=0.0)
+    when: str = Field(default="", description="| approve | reject")
+    loop: bool = False            # 返工回流边(驳回后回到前面的活动)
 
 
-@dataclass(frozen=True)
-class ProcessDef:
+class ProcessDef(BaseModel):
     """BPMN 流程定义。"""
 
     key: str
@@ -117,35 +115,35 @@ PURCHASE_REQUISITION = ProcessDef(
     business_object="purchase_requisition",
     start="s_req",
     nodes=(
-        Node("s_req", "采购需求提出", START_EVENT),
-        Node("n_submit", "Submit Purchase Requisition", USER_TASK,
+        Node(id="s_req", name="采购需求提出", kind=START_EVENT),
+        Node(id="n_submit", name="Submit Purchase Requisition", kind=USER_TASK,
              role="采购申请人", duration_mean=25),
-        Node("g_need_appr", "是否需审批", EXCLUSIVE_GATEWAY),
-        Node("n_mgr_appr", "Approve Requisition by Manager", USER_TASK,
+        Node(id="g_need_appr", name="是否需审批", kind=EXCLUSIVE_GATEWAY),
+        Node(id="n_mgr_appr", name="Approve Requisition by Manager", kind=USER_TASK,
              role="部门经理", multi_instance=True, mi_min=2, mi_max=3,
              reject_prob=0.18, duration_mean=60),
-        Node("g_appr_result", "审批结果", EXCLUSIVE_GATEWAY),
-        Node("n_revise", "Revise Requisition", USER_TASK,
+        Node(id="g_appr_result", name="审批结果", kind=EXCLUSIVE_GATEWAY),
+        Node(id="n_revise", name="Revise Requisition", kind=USER_TASK,
              role="采购申请人", duration_mean=40),
-        Node("n_convert", "Convert to Purchase Order", SERVICE_TASK,
+        Node(id="n_convert", name="Convert to Purchase Order", kind=SERVICE_TASK,
              role="采购专员", duration_mean=10),
-        Node("n_cancel", "Cancel Requisition", SERVICE_TASK,
+        Node(id="n_cancel", name="Cancel Requisition", kind=SERVICE_TASK,
              role="采购专员", duration_mean=15),
-        Node("e_req_done", "申请关闭", END_EVENT),
-        Node("e_req_drop", "申请作废", END_EVENT),
+        Node(id="e_req_done", name="申请关闭", kind=END_EVENT),
+        Node(id="e_req_drop", name="申请作废", kind=END_EVENT),
     ),
     flows=(
-        Flow("s_req", "n_submit"),
-        Flow("n_submit", "g_need_appr"),
-        Flow("g_need_appr", "n_mgr_appr", weight=0.85),
-        Flow("g_need_appr", "n_convert", weight=0.15),
-        Flow("n_mgr_appr", "g_appr_result"),
-        Flow("g_appr_result", "n_convert", weight=0.75),
-        Flow("g_appr_result", "n_revise", weight=0.20, when="reject", loop=True),
-        Flow("g_appr_result", "n_cancel", weight=0.05, when="reject"),
-        Flow("n_revise", "n_submit", loop=True),
-        Flow("n_convert", "e_req_done"),
-        Flow("n_cancel", "e_req_drop"),
+        Flow(src="s_req", tgt="n_submit"),
+        Flow(src="n_submit", tgt="g_need_appr"),
+        Flow(src="g_need_appr", tgt="n_mgr_appr", weight=0.85),
+        Flow(src="g_need_appr", tgt="n_convert", weight=0.15),
+        Flow(src="n_mgr_appr", tgt="g_appr_result"),
+        Flow(src="g_appr_result", tgt="n_convert", weight=0.75),
+        Flow(src="g_appr_result", tgt="n_revise", weight=0.20, when="reject", loop=True),
+        Flow(src="g_appr_result", tgt="n_cancel", weight=0.05, when="reject"),
+        Flow(src="n_revise", tgt="n_submit", loop=True),
+        Flow(src="n_convert", tgt="e_req_done"),
+        Flow(src="n_cancel", tgt="e_req_drop"),
     ),
 )
 
@@ -155,34 +153,34 @@ PURCHASE_ORDER = ProcessDef(
     business_object="purchase_order",
     start="s_po",
     nodes=(
-        Node("s_po", "订单创建", START_EVENT),
-        Node("n_create_po", "Create Purchase Order", SERVICE_TASK,
+        Node(id="s_po", name="订单创建", kind=START_EVENT),
+        Node(id="n_create_po", name="Create Purchase Order", kind=SERVICE_TASK,
              role="采购专员", duration_mean=15),
-        Node("g_amount", "金额是否超审批阈值", EXCLUSIVE_GATEWAY),
-        Node("n_dir_appr", "Approve Purchase Order by Director", USER_TASK,
+        Node(id="g_amount", name="金额是否超审批阈值", kind=EXCLUSIVE_GATEWAY),
+        Node(id="n_dir_appr", name="Approve Purchase Order by Director", kind=USER_TASK,
              role="采购总监", reject_prob=0.15, duration_mean=90),
-        Node("g_dir_result", "总监审批结果", EXCLUSIVE_GATEWAY),
-        Node("n_revise_po", "Revise Purchase Order", SERVICE_TASK,
+        Node(id="g_dir_result", name="总监审批结果", kind=EXCLUSIVE_GATEWAY),
+        Node(id="n_revise_po", name="Revise Purchase Order", kind=SERVICE_TASK,
              role="采购专员", duration_mean=25),
-        Node("n_send_po", "Send Order to Supplier", SERVICE_TASK,
+        Node(id="n_send_po", name="Send Order to Supplier", kind=SERVICE_TASK,
              role="采购专员", duration_mean=5),
-        Node("n_cancel_po", "Cancel Purchase Order", SERVICE_TASK,
+        Node(id="n_cancel_po", name="Cancel Purchase Order", kind=SERVICE_TASK,
              role="采购专员", duration_mean=10),
-        Node("e_po_done", "订单生效", END_EVENT),
-        Node("e_po_drop", "订单取消", END_EVENT),
+        Node(id="e_po_done", name="订单生效", kind=END_EVENT),
+        Node(id="e_po_drop", name="订单取消", kind=END_EVENT),
     ),
     flows=(
-        Flow("s_po", "n_create_po"),
-        Flow("n_create_po", "g_amount"),
-        Flow("g_amount", "n_dir_appr", weight=0.35),
-        Flow("g_amount", "n_send_po", weight=0.65),
-        Flow("n_dir_appr", "g_dir_result"),
-        Flow("g_dir_result", "n_send_po", weight=0.80),
-        Flow("g_dir_result", "n_revise_po", weight=0.15, when="reject", loop=True),
-        Flow("g_dir_result", "n_cancel_po", weight=0.05, when="reject"),
-        Flow("n_revise_po", "n_create_po", loop=True),
-        Flow("n_send_po", "e_po_done"),
-        Flow("n_cancel_po", "e_po_drop"),
+        Flow(src="s_po", tgt="n_create_po"),
+        Flow(src="n_create_po", tgt="g_amount"),
+        Flow(src="g_amount", tgt="n_dir_appr", weight=0.35),
+        Flow(src="g_amount", tgt="n_send_po", weight=0.65),
+        Flow(src="n_dir_appr", tgt="g_dir_result"),
+        Flow(src="g_dir_result", tgt="n_send_po", weight=0.80),
+        Flow(src="g_dir_result", tgt="n_revise_po", weight=0.15, when="reject", loop=True),
+        Flow(src="g_dir_result", tgt="n_cancel_po", weight=0.05, when="reject"),
+        Flow(src="n_revise_po", tgt="n_create_po", loop=True),
+        Flow(src="n_send_po", tgt="e_po_done"),
+        Flow(src="n_cancel_po", tgt="e_po_drop"),
     ),
 )
 
@@ -192,26 +190,26 @@ GOODS_RECEIPT = ProcessDef(
     business_object="goods_receipt",
     start="s_gr",
     nodes=(
-        Node("s_gr", "供应商到货", START_EVENT),
-        Node("n_post_gr", "Post Goods Receipt", SERVICE_TASK,
+        Node(id="s_gr", name="供应商到货", kind=START_EVENT),
+        Node(id="n_post_gr", name="Post Goods Receipt", kind=SERVICE_TASK,
              role="仓储专员", duration_mean=12),
-        Node("n_inspect", "Quality Inspection", USER_TASK,
+        Node(id="n_inspect", name="Quality Inspection", kind=USER_TASK,
              role="质检员", reject_prob=0.12, duration_mean=45),
-        Node("g_qc", "质检是否合格", EXCLUSIVE_GATEWAY),
-        Node("n_putaway", "Putaway to Warehouse", SERVICE_TASK,
+        Node(id="g_qc", name="质检是否合格", kind=EXCLUSIVE_GATEWAY),
+        Node(id="n_putaway", name="Putaway to Warehouse", kind=SERVICE_TASK,
              role="仓储专员", duration_mean=30),
-        Node("n_return", "Return to Supplier", SERVICE_TASK,
+        Node(id="n_return", name="Return to Supplier", kind=SERVICE_TASK,
              role="仓储专员", duration_mean=35),
-        Node("e_gr_done", "收货完成", END_EVENT),
+        Node(id="e_gr_done", name="收货完成", kind=END_EVENT),
     ),
     flows=(
-        Flow("s_gr", "n_post_gr"),
-        Flow("n_post_gr", "n_inspect"),
-        Flow("n_inspect", "g_qc"),
-        Flow("g_qc", "n_putaway", weight=0.88),
-        Flow("g_qc", "n_return", weight=0.12, when="reject"),
-        Flow("n_putaway", "e_gr_done"),
-        Flow("n_return", "e_gr_done"),
+        Flow(src="s_gr", tgt="n_post_gr"),
+        Flow(src="n_post_gr", tgt="n_inspect"),
+        Flow(src="n_inspect", tgt="g_qc"),
+        Flow(src="g_qc", tgt="n_putaway", weight=0.88),
+        Flow(src="g_qc", tgt="n_return", weight=0.12, when="reject"),
+        Flow(src="n_putaway", tgt="e_gr_done"),
+        Flow(src="n_return", tgt="e_gr_done"),
     ),
 )
 
@@ -221,35 +219,36 @@ INVOICE_VERIFICATION = ProcessDef(
     business_object="invoice",
     start="s_inv",
     nodes=(
-        Node("s_inv", "收到供应商发票", START_EVENT),
-        Node("n_enter_inv", "Enter Incoming Invoice", USER_TASK,
+        Node(id="s_inv", name="收到供应商发票", kind=START_EVENT),
+        Node(id="n_enter_inv", name="Enter Incoming Invoice", kind=USER_TASK,
              role="财务专员", duration_mean=25),
-        Node("n_match", "Three-Way Match", SERVICE_TASK,
+        Node(id="n_match", name="Three-Way Match", kind=SERVICE_TASK,
              role="财务专员", reject_prob=0.18, duration_mean=8),
-        Node("g_match", "三单匹配结果", EXCLUSIVE_GATEWAY),
-        Node("n_park", "Park Invoice", USER_TASK,
+        Node(id="g_match", name="三单匹配结果", kind=EXCLUSIVE_GATEWAY),
+        Node(id="n_park", name="Park Invoice", kind=USER_TASK,
              role="财务专员", duration_mean=20),
-        Node("n_handle_exc", "Handle Invoice Exception", USER_TASK,
+        Node(id="n_handle_exc", name="Handle Invoice Exception", kind=USER_TASK,
              role="财务专员", duration_mean=60),
-        Node("n_appr_inv", "Approve Invoice", USER_TASK,
+        Node(id="n_appr_inv", name="Approve Invoice", kind=USER_TASK,
              role="应付会计", multi_instance=True, mi_min=2, mi_max=2,
              duration_mean=50),
-        Node("n_pay", "Post Payment", SERVICE_TASK, role="出纳", duration_mean=12),
-        Node("n_clear", "Clear Invoice", SERVICE_TASK,
+        Node(id="n_pay", name="Post Payment", kind=SERVICE_TASK, role="出纳",
+             duration_mean=12),
+        Node(id="n_clear", name="Clear Invoice", kind=SERVICE_TASK,
              role="应付会计", duration_mean=6),
-        Node("e_inv_done", "发票关闭", END_EVENT),
+        Node(id="e_inv_done", name="发票关闭", kind=END_EVENT),
     ),
     flows=(
-        Flow("s_inv", "n_enter_inv"),
-        Flow("n_enter_inv", "n_match"),
-        Flow("n_match", "g_match"),
-        Flow("g_match", "n_appr_inv", weight=0.82),
-        Flow("g_match", "n_park", weight=0.18, when="reject"),
-        Flow("n_park", "n_handle_exc"),
-        Flow("n_handle_exc", "n_match", loop=True),
-        Flow("n_appr_inv", "n_pay"),
-        Flow("n_pay", "n_clear"),
-        Flow("n_clear", "e_inv_done"),
+        Flow(src="s_inv", tgt="n_enter_inv"),
+        Flow(src="n_enter_inv", tgt="n_match"),
+        Flow(src="n_match", tgt="g_match"),
+        Flow(src="g_match", tgt="n_appr_inv", weight=0.82),
+        Flow(src="g_match", tgt="n_park", weight=0.18, when="reject"),
+        Flow(src="n_park", tgt="n_handle_exc"),
+        Flow(src="n_handle_exc", tgt="n_match", loop=True),
+        Flow(src="n_appr_inv", tgt="n_pay"),
+        Flow(src="n_pay", tgt="n_clear"),
+        Flow(src="n_clear", tgt="e_inv_done"),
     ),
 )
 

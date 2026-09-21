@@ -310,6 +310,7 @@ footer {{
   </ul>
 </section>
 
+{insight_block}
 <footer>由 datamind PoC 自动生成 · 数据基于 {dataset_description}</footer>
 
 </div>
@@ -493,12 +494,17 @@ def build_report(
     sla_days: int,
     bottleneck_n: int,
     durations_df=None,
+    llm_insight: dict | None = None,
 ) -> str:
     """组装所有数据,返回完整 HTML 字符串。
 
     bpmn_xml 参数实际是 Petri 网 SVG(graphviz 渲染),命名保留兼容性。
     dfg_svg 是直接跟随图 SVG(主视图,业务可读)。
+    llm_insight 为 InsightResult.to_dict();为 None 时不渲染该章节(向后兼容)。
     """
+    from .insight import render_insight_section
+
+    insight_block = render_insight_section(llm_insight, title="5. 智能解读(LLM)")
     diagnostics = conformance
     fitness_pct = round((diagnostics.get("fitness", 0) or 0) * 100, 2)
     num_fitting = diagnostics.get("num_fitting", 0)
@@ -636,6 +642,7 @@ def build_report(
         case_duration_dist_json=json.dumps(case_dur_dist),
         bottleneck_chart_json=json.dumps(bottleneck_chart),
         rework_chart_json=json.dumps(rework_chart),
+        insight_block=insight_block,
     )
     return html_str
 

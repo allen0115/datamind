@@ -91,8 +91,20 @@ def build_ocel_report(
     dfg_svgs: dict[str, str],
     ocpn: dict,
     timestamp_warning: str | None = None,
+    llm_insight: dict | None = None,
+    hypothesis_result: dict | None = None,
 ) -> str:
-    """组装 OCEL 报告 HTML。"""
+    """组装 OCEL 报告 HTML。
+
+    llm_insight 为 InsightResult.to_dict();为 None 时不渲染该章节(向后兼容)。
+    hypothesis_result 为 hypothesis.run_hypothesis_loop() 的返回;为 None 时不渲染。
+    """
+    from .insight import render_insight_section
+    from .hypothesis import render_hypothesis_section
+
+    insight_block = render_insight_section(llm_insight, title="10. 智能解读(LLM)")
+    hypothesis_block = render_hypothesis_section(
+        hypothesis_result, title="11. 异常假设验证(LLM 提出 · pm4py 判定)")
 
     # 对象类型表
     ot_rows = _table(
@@ -387,6 +399,8 @@ def build_ocel_report(
   </div>
 </section>
 
+{insight_block}
+{hypothesis_block}
 <footer>由 datamind OCEL 分析模块自动生成 · 数据源 {_esc(dataset_description)}</footer>
 </div>
 </body>

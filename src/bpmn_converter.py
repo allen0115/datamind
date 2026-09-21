@@ -316,6 +316,13 @@ def write_ocel(ocel, path: str | Path) -> Path:
 
 @dataclass
 class ConversionResult:
+    """转换产物。
+
+    保持 dataclass:四个字段都是 DataFrame,交给 pydantic 只会得到
+    「开 arbitrary_types_allowed 然后放弃校验」的结果,没有收益。
+    结构化 schema 的校验交给 bpmn_registry 与 llm_context。
+    """
+
     events: pd.DataFrame
     objects: pd.DataFrame
     relations: pd.DataFrame

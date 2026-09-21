@@ -20,6 +20,10 @@ from .ocel_discovery import (
     ocpn_summary,
 )
 from .ocel_report import build_ocel_report, write_ocel_report
+from .llm_client import build_llm_client
+from .llm_context import build_ocel_facts
+from .insight import maybe_generate_insight
+from .hypothesis import run_hypothesis_loop
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -99,7 +103,23 @@ def run_ocel_pipeline(dataset_name: str, config_path: str | Path = "config.yaml"
         if len(dfg_svgs) >= top_dfgs:
             break
 
-    # 5. 组装报告
+    # 5. LLM 智能解读 + 假设验证闭环(可选:仅 llm.enabled=true 且有 API key 时挂载)
+    llm_client = build_llm_client(cfg, root=root)
+    insight = None
+    hypothesis_result = None
+    if llm_client.available:
+        facts = build_ocel_facts(dataset=dataset_name, summary=summary, cross=cross,
+                                 object_types=ot_stats_df.to_dict(orient="records"))
+        insight = maybe_generate_insight(facts, llm_client)
+        logger.info("LLM 智能解读: %s",
+                    "已生成" if insight and insight.source == "llm" else "已降级")
+        hypothesis_result = run_hypothesis_loop(facts, ocel, llm_client)
+        logger.info("假设闭环: %d 条假设,成立 %d 条,白名单拦截 %d 条",
+                    len(hypothesis_result["hypotheses"]),
+                    hypothesis_result["supported_count"],
+                    len(hypothesis_result["dropped"]))
+
+    # 6. 组装报告
     html = build_ocel_report(
         title=cfg["report"].get("ocel_title", "OCEL 对象中心流程分析报告"),
         dataset_description=ds.get("description", dataset_name),
@@ -110,6 +130,8 @@ def run_ocel_pipeline(dataset_name: str, config_path: str | Path = "config.yaml"
         dfg_svgs=dfg_svgs,
         ocpn=ocpn_summary(ocpn_obj),
         timestamp_warning=ds.get("timestamp_warning", _TS_WARNING_DEFAULT),
+        llm_insight=insight.to_dict() if insight else None,
+        hypothesis_result=hypothesis_result,
     )
     out = write_ocel_report(html, root / cfg["report"]["output_dir"],
                             filename_prefix=f"ocel_{dataset_name}")

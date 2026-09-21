@@ -25,6 +25,9 @@ from .performance import (
     full_performance_report,
 )
 from .report_generator import build_report, write_report
+from .llm_client import build_llm_client, llm_settings
+from .llm_context import build_single_facts
+from .insight import maybe_generate_insight
 
 logging.basicConfig(
     level=logging.INFO,
@@ -87,7 +90,20 @@ def run_pipeline(dataset_name: str, config_path: str | Path = "config.yaml") -> 
         top_n=perf_cfg["bottleneck_top_n"],
     )
 
-    # 5. 报告组装
+    # 5. LLM 智能解读(可选:仅 llm.enabled=true 且有 API key 时挂载)
+    llm_client = build_llm_client(cfg, root=project_root)
+    insight = None
+    if llm_client.available:
+        facts = build_single_facts(
+            dataset=dataset_name, summary=summary, process_stats=process_stats,
+            conformance=conformance, performance=performance, variants=variants,
+            max_variants=int(llm_settings(cfg).get("max_variants", 8)),
+        )
+        insight = maybe_generate_insight(facts, llm_client)
+        logger.info("LLM 智能解读: %s",
+                    "已生成" if insight and insight.source == "llm" else "已降级")
+
+    # 6. 报告组装
     html_str = build_report(
         title=cfg["report"]["title"],
         dataset_description=ds_cfg["description"],
@@ -102,6 +118,7 @@ def run_pipeline(dataset_name: str, config_path: str | Path = "config.yaml") -> 
         sla_days=perf_cfg["sla_days"],
         bottleneck_n=perf_cfg["bottleneck_top_n"],
         durations_df=durations_df,  # 显式传入
+        llm_insight=insight.to_dict() if insight else None,
     )
     report_path = write_report(
         html_str,

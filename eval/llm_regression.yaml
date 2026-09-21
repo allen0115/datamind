@@ -1,0 +1,55 @@
+# LLM × pm4py 回归集
+#
+# 目的:模型版本 / prompt 模板变更后,结论不应漂移。
+# 离线(rule 降级)与在线(LLM)两种状态都能跑:
+#   - 未启用 LLM 时,insight 走规则化结论,断言只看"有没有结论"
+#   - 假设验证与对象模型校验完全由 pm4py 计算,与 LLM 无关,恒为确定性断言
+#
+# 运行:
+#   .venv/bin/python -m src.llm_main --regression eval/llm_regression.yaml
+version: v1
+
+cases:
+  - id: ocel_insight_has_conclusions
+    dataset: p2p_sim
+    mode: insight
+    expect:
+      # 离线为 rule,在线为 llm;两种都允许
+      source_in: [llm, rule]
+      findings_min: 1
+
+  - id: xes_single_process_insight_has_conclusions
+    dataset: p2p_sim_xes
+    mode: insight
+    expect:
+      source_in: [llm, rule]
+      findings_min: 1
+
+  - id: hypothesis_main_path_supported
+    dataset: p2p_sim
+    mode: hypothesis
+    hypotheses:
+      - name: "订单下发触发收货"
+        source_activity: "Send Order to Supplier"
+        target_activity: "Post Goods Receipt"
+    expect:
+      # 主干链路必须被 pm4py 判为成立(lift > 1 且 FDR 显著)
+      expect_supported: true
+
+  - id: hypothesis_reverse_path_not_supported
+    dataset: p2p_sim
+    mode: hypothesis
+    hypotheses:
+      - name: "清账反向触发建单"
+        source_activity: "Clear Invoice"
+        target_activity: "Create Purchase Order"
+    expect:
+      expect_supported: false
+
+  - id: object_model_baseline_ok
+    dataset: p2p_sim
+    mode: object-model
+    bpmn: data/sim/p2p_sim.bpmn
+    cases: 30
+    expect:
+      expect_ok: true

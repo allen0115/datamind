@@ -33,7 +33,14 @@ datamind/
 │   ├── bpmn_simulator.py       # BPM 引擎执行模拟(引擎表 + 业务表)
 │   ├── bpmn_registry.py        # 对象注册表(转换映射的唯一真源)
 │   ├── bpmn_converter.py       # 引擎数据 → XES / OCEL 转换
-│   └── sim_main.py             # 模拟 + 转换入口
+│   ├── sim_main.py             # 模拟 + 转换入口
+│   │
+│   ├── llm_client.py           # LLM 调用层(provider/缓存/审计/降级)
+│   ├── llm_context.py          # pm4py ↔ LLM 交接契约 + 数字溯源校验
+│   ├── insight.py              # L0 结果解读
+│   ├── hypothesis.py           # L3 假设验证闭环
+│   ├── object_model_draft.py   # L1 对象模型抽取与回灌校验
+│   └── llm_main.py             # L4 交互问答 CLI + 回归集
 ├── tests/
 ├── config.yaml
 ├── pyproject.toml      # 依赖源（唯一事实来源）
@@ -222,6 +229,72 @@ uv run python -m src.main      --dataset p2p_sim
 | 平均对象/事件 | 3.89 | 低于 1.5 说明多对象关联没建立 |
 | 时间戳唯一率 | 100% | 精度不够,时延不可信 |
 | 悬空关联 | 0 | 业务库外键缺失或变量值脏 |
+
+---
+
+## LLM × pm4py(组合分析)
+
+pm4py 擅长计算与判定,LLM 擅长语义与假设。两者结合的唯一原则是:
+
+> **LLM 负责语义理解与假设提出,pm4py 负责计算与判定,结论中的每个数字必须来自 pm4py。**
+
+### 快速开始
+
+```bash
+# 可选依赖(不装也能跑完整流水线,自动降级为规则化结论)
+uv sync --extra llm
+export DATAMIND_LLM_API_KEY=sk-xxx
+
+# 打开开关:config.yaml 中 llm.enabled: true
+```
+
+```bash
+# L0 结果解读:把统计结果翻译成业务语言
+.venv/bin/python -m src.llm_main --dataset p2p_sim --question "哪些环节最慢?"
+
+# L3 假设验证:LLM 提假设,pm4py 用 lift + 卡方 + BH FDR 判定
+.venv/bin/python -m src.llm_main --dataset p2p_sim --question "有哪些可疑的异常链路?"
+
+# L1 对象模型抽取:从 BPMN 产出候选注册表并回灌校验
+.venv/bin/python -m src.llm_main --mode object-model --bpmn data/sim/p2p_sim.bpmn
+
+# 回归集:防模型/提示变更后结论漂移
+.venv/bin/python -m src.llm_main --regression eval/llm_regression.yaml
+
+# 报告也会新增「智能解读」「异常假设验证」章节
+.venv/bin/python -m src.ocel_main --dataset p2p_sim
+```
+
+### 四个层次
+
+| 层 | 模块 | LLM 做什么 | pm4py 做什么 |
+|---|---|---|---|
+| L0 结果解读 | `src/insight.py` | 指标 → 业务结论 + 行动建议 | 全部数字 |
+| L3 假设验证 | `src/hypothesis.py` | 提出候选异常链路 | lift + 卡方 + BH FDR 判定 |
+| L1 对象建模 | `src/object_model_draft.py` | 从 BPMN + 表结构提候选注册表 | 回灌转换验证质量 |
+| L4 交互问答 | `src/llm_main.py` | 语义理解 | 意图路由用规则(确定性,省成本) |
+
+底座:`src/llm_client.py`(调用/缓存/审计/降级)、`src/llm_context.py`(payload 压缩 + 数字溯源)。
+
+### 三道防幻觉闸门
+
+1. **Schema 校验** —— 输出不符合结构即判调用失败,重试一次后仍失败则降级
+2. **数字溯源** —— `assert_numbers_from_facts()`:输出里出现 payload 之外的数字即拒绝
+   (会先抹掉 `p90_days` 这类指标名,避免把名字里的 90 误判成编造数字)
+3. **白名单** —— 假设只能引用日志中真实存在的活动名与对象类型,越界即丢弃
+
+### 采样与缓存
+
+- 变体按**分层采样**(高频取代表 + 低频异常优先保留),不是截断 Top-N
+- `temperature=0` + 磁盘缓存,缓存 key 含 `template_version`,改 prompt 不递增版本不会误命中旧缓存
+- 审计写 `outputs/llm_audit.jsonl`,**只记元信息不记 prompt 原文**
+
+### 离线行为
+
+`llm.enabled: false` 或没有 API key 时:
+- 报告不出现新增章节(与开启前完全一致)
+- CLI 走规则化降级,结论由阈值规则产生
+- 假设验证与对象模型校验**完全由 pm4py 计算**,不受影响
 
 ---
 

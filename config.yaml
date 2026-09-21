@@ -24,6 +24,14 @@ datasets:
       prefix: ""
       max_cases: null
 
+  # 与 p2p_sim 同源,但只走 XES(单流程)路径,供 LLM 回归集覆盖该分支
+  p2p_sim_xes:
+    xes_file: "data/sim/p2p_sim_instance.xes"
+    description: "BPMN 模拟 P2P · XES 单流程视角(供 llm_main 回归)"
+    case_filter:
+      prefix: ""
+      max_cases: null
+
 # ------------------------------------------------------------------
 # OCEL 2.0 数据集(对象中心流程挖掘)
 # ------------------------------------------------------------------
@@ -49,6 +57,24 @@ ocel_datasets:
     # 时间戳可靠性提示(写进报告)。该数据集的时间戳由模拟器生成,
     # 跨度过大且大量重复,时延结论不可信 —— 接入真实日志后可删除此项。
     timestamp_warning: "本数据集绝对时间戳由模拟器生成(跨度 1994–2020,不合业务常理),且 24,854 个事件中仅 10,175 个唯一时间戳(约 59% 重复)。因此「触发次数」可靠,但时延数据不可用于 SLA 结论。"
+
+# ------------------------------------------------------------------
+# LLM × pm4py(可选能力):默认关闭
+# 关闭时全部走规则化降级,不装 openai 也能跑完整流水线。
+# 铁律:LLM 只做语义与假设,所有数字由 pm4py 计算后注入 payload。
+# ------------------------------------------------------------------
+llm:
+  enabled: false
+  model: "gpt-4o-mini"
+  base_url: ""                     # 留空用官方地址;自建/兼容接口填具体 URL
+  api_key_env: "DATAMIND_LLM_API_KEY"   # 密钥只读环境变量,不写进配置文件
+  timeout_s: 30
+  temperature: 0                   # 同输入同输出
+  max_retries: 1                   # 输出未通过 schema 校验时重试次数
+  cache_dir: ".cache/llm"
+  audit_path: "outputs/llm_audit.jsonl"
+  template_version: "v1"           # 改 prompt 模板必须递增,否则会命中旧缓存
+  max_variants: 8                  # 喂给 LLM 的代表迹条数(分层采样)
 
 # 流程发现算法
 discovery:

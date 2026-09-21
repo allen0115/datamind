@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 import pandas as pd
+from pydantic import BaseModel, Field
 
 from .bpmn_model import (
     END_EVENT,
@@ -67,21 +68,26 @@ _CATEGORIES = ("办公用品", "IT设备", "原材料", "包装材料", "劳保�
 _REGIONS = ("华东", "华南", "华北", "西南", "海外")
 
 
-@dataclass
-class SimConfig:
-    n_requisitions: int = 200        # 采购申请条数(整条 P2P 链条的起点)
+class SimConfig(BaseModel):
+    """模拟参数。声明即校验:填错类型或越界在构造时就暴露。"""
+
+    n_requisitions: int = Field(default=200, gt=0)   # 采购申请条数(P2P 链条起点)
     seed: int = 42
     start_at: str = "2024-01-01"
     chain_gap_hours: tuple[float, float] = (1.0, 8.0)   # 相邻链条的起始间隔
     approval_threshold: float = 50000.0                  # 超过此金额走总监审批
-    max_rework: int = 3              # 单个节点最多返工次数(防死循环)
-    n_materials: int = 60
-    n_suppliers: int = 12
+    max_rework: int = Field(default=3, ge=1)   # 单节点最多返工次数(防死循环)
+    n_materials: int = Field(default=60, gt=0)
+    n_suppliers: int = Field(default=12, gt=0)
 
 
 @dataclass
 class SimTables:
-    """模拟出来的源系统表。"""
+    """模拟出来的源系统表。
+
+    仍是 dataclass:它装的是 DataFrame,pydantic 无法对 DataFrame 做有意义的
+    校验(除非开 arbitrary_types_allowed,那样等于放弃校验)。
+    """
 
     process_instance: pd.DataFrame   # bpm_process_instance
     task: pd.DataFrame               # bpm_task

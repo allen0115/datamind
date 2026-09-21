@@ -9,14 +9,14 @@
   variable_map   流程变量 → 对象类型(引擎里对象 ID 的主要藏身处)
 
 改业务模型时只改这里,不用动转换器。
+结构一律用 pydantic 声明,字段缺失或类型写错在定义时就暴露。
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from pydantic import BaseModel, Field
 
 
-@dataclass(frozen=True)
-class ObjectSpec:
+class ObjectSpec(BaseModel):
     """一个业务实体类型。"""
 
     name: str                        # ocel:type
@@ -26,8 +26,7 @@ class ObjectSpec:
     label: str = ""                  # 中文说明
 
 
-@dataclass(frozen=True)
-class O2ORule:
+class O2ORule(BaseModel):
     """对象—对象关系规则:子表的若干列拼成父对象的 ID。"""
 
     child_type: str
@@ -37,8 +36,7 @@ class O2ORule:
     qualifier: str = "composes"
 
 
-@dataclass(frozen=True)
-class ExpansionRule:
+class ExpansionRule(BaseModel):
     """事件展开规则:事件已关联 parent 且活动命中时,再展开到 child。
 
     join_cols 是「子表里构成父对象 ID 的列」,与 O2ORule 同义。
@@ -52,12 +50,11 @@ class ExpansionRule:
     qualifier: str = "contains"
 
 
-@dataclass(frozen=True)
-class ObjectRegistry:
+class ObjectRegistry(BaseModel):
     objects: tuple[ObjectSpec, ...]
     o2o_rules: tuple[O2ORule, ...]
     expansion_rules: tuple[ExpansionRule, ...]
-    variable_map: dict[str, str] = field(default_factory=dict)
+    variable_map: dict[str, str] = Field(default_factory=dict)
     # 资源维度:任务的 assignee 也当对象,可挖「谁/哪个角色卡住流程」
     resource_object: str | None = "employee"
 
@@ -74,46 +71,56 @@ class ObjectRegistry:
 
 DEFAULT_REGISTRY = ObjectRegistry(
     objects=(
-        ObjectSpec("purchase_requisition", "purchase_requisition", ("pr_no",),
+        ObjectSpec(name="purchase_requisition", table="purchase_requisition",
+                   id_cols=("pr_no",),
                    attrs=("material_code", "qty", "amount", "requester"), label="采购申请"),
-        ObjectSpec("purchase_order", "purchase_order", ("po_no",),
+        ObjectSpec(name="purchase_order", table="purchase_order", id_cols=("po_no",),
                    attrs=("supplier_code", "amount", "status"), label="采购订单"),
-        ObjectSpec("po_item", "po_item", ("po_no", "item_no"),
+        ObjectSpec(name="po_item", table="po_item", id_cols=("po_no", "item_no"),
                    attrs=("material_code", "qty", "unit_price"), label="订单行项目"),
-        ObjectSpec("goods_receipt", "goods_receipt", ("gr_no",),
+        ObjectSpec(name="goods_receipt", table="goods_receipt", id_cols=("gr_no",),
                    attrs=("po_no", "received_qty"), label="收货单"),
-        ObjectSpec("gr_item", "gr_item", ("gr_no", "item_no"),
+        ObjectSpec(name="gr_item", table="gr_item", id_cols=("gr_no", "item_no"),
                    attrs=("material_code", "qty"), label="收货行项目"),
-        ObjectSpec("invoice", "invoice", ("invoice_no",),
+        ObjectSpec(name="invoice", table="invoice", id_cols=("invoice_no",),
                    attrs=("po_no", "amount", "status"), label="供应商发票"),
-        ObjectSpec("material", "material", ("material_code",),
+        ObjectSpec(name="material", table="material", id_cols=("material_code",),
                    attrs=("material_name", "category"), label="物料"),
-        ObjectSpec("supplier", "supplier", ("supplier_code",),
+        ObjectSpec(name="supplier", table="supplier", id_cols=("supplier_code",),
                    attrs=("supplier_name", "region"), label="供应商"),
-        ObjectSpec("employee", "employee", ("employee_id",),
+        ObjectSpec(name="employee", table="employee", id_cols=("employee_id",),
                    attrs=("name", "role", "department"), label="员工/资源"),
     ),
     o2o_rules=(
-        O2ORule("po_item", "purchase_order", ("po_no",), "po_item", "composes"),
-        O2ORule("gr_item", "goods_receipt", ("gr_no",), "gr_item", "composes"),
-        O2ORule("purchase_order", "purchase_requisition", ("pr_no",),
-                "purchase_order", "derived_from"),
-        O2ORule("goods_receipt", "purchase_order", ("po_no",),
-                "goods_receipt", "receives"),
-        O2ORule("invoice", "purchase_order", ("po_no",), "invoice", "billed_for"),
+        O2ORule(child_type="po_item", parent_type="purchase_order",
+                join_cols=("po_no",), table="po_item", qualifier="composes"),
+        O2ORule(child_type="gr_item", parent_type="goods_receipt",
+                join_cols=("gr_no",), table="gr_item", qualifier="composes"),
+        O2ORule(child_type="purchase_order", parent_type="purchase_requisition",
+                join_cols=("pr_no",), table="purchase_order", qualifier="derived_from"),
+        O2ORule(child_type="goods_receipt", parent_type="purchase_order",
+                join_cols=("po_no",), table="goods_receipt", qualifier="receives"),
+        O2ORule(child_type="invoice", parent_type="purchase_order",
+                join_cols=("po_no",), table="invoice", qualifier="billed_for"),
     ),
     expansion_rules=(
         # 建订单/改订单:一个订单抬头事件同时作用于所有行项目
-        ExpansionRule("purchase_order", "po_item", "po_item", ("po_no",),
-                      ("Create Purchase Order", "Revise Purchase Order"), "contains"),
+        ExpansionRule(parent_type="purchase_order", child_type="po_item", table="po_item",
+                      join_cols=("po_no",),
+                      activities=("Create Purchase Order", "Revise Purchase Order"),
+                      qualifier="contains"),
         # 收货过账:一张收货单同时过账多行
-        ExpansionRule("goods_receipt", "gr_item", "gr_item", ("gr_no",),
-                      ("Post Goods Receipt",), "contains"),
+        ExpansionRule(parent_type="goods_receipt", child_type="gr_item", table="gr_item",
+                      join_cols=("gr_no",), activities=("Post Goods Receipt",),
+                      qualifier="contains"),
         # 订单行 / 收货行都会落到具体物料上
-        ExpansionRule("po_item", "material", "po_item", ("po_no", "item_no"),
-                      ("Create Purchase Order", "Revise Purchase Order"), "refers_to"),
-        ExpansionRule("gr_item", "material", "gr_item", ("gr_no", "item_no"),
-                      ("Post Goods Receipt",), "refers_to"),
+        ExpansionRule(parent_type="po_item", child_type="material", table="po_item",
+                      join_cols=("po_no", "item_no"),
+                      activities=("Create Purchase Order", "Revise Purchase Order"),
+                      qualifier="refers_to"),
+        ExpansionRule(parent_type="gr_item", child_type="material", table="gr_item",
+                      join_cols=("gr_no", "item_no"), activities=("Post Goods Receipt",),
+                      qualifier="refers_to"),
     ),
     variable_map={
         "prNo": "purchase_requisition",

@@ -7,6 +7,7 @@ __pycache__/
 
 # 工具与环境缓存
 .pytest_cache/
+.cache/
 .ruff_cache/
 .mypy_cache/
 .ipynb_checkpoints/

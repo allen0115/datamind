@@ -11,6 +11,15 @@ dependencies = [
     "numpy>=1.24.0",
     "pyyaml>=6.0",
     "graphviz>=0.20",
+    # 所有 schema（对象注册表、MiningFacts、LLM 输出契约）统一用 pydantic 校验。
+    "pydantic>=2.9",
+]
+
+[project.optional-dependencies]
+# LLM × pm4py 组合分析所需的模型 SDK。不装也能跑完整流水线（自动降级为规则化结论）。
+# 安装：uv sync --extra llm
+llm = [
+    "openai>=1.50",
 ]
 
 [dependency-groups]
