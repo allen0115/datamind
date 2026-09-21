@@ -151,6 +151,7 @@ def _check_columns(draft: ObjectModelDraft, schemas: dict[str, list[str]]) -> li
         bad = [c for c in list(o.id_cols) + list(o.attrs) if c not in cols]
         if bad:
             issues.append(f"对象类型 {o.name}: 列 {bad} 不在表 {o.table} 中")
+    child_by_name = {o.name: o for o in draft.objects}
     for r in list(draft.o2o_rules) + list(draft.expansion_rules):
         cols = schemas.get(r.table)
         if cols is None:
@@ -159,6 +160,14 @@ def _check_columns(draft: ObjectModelDraft, schemas: dict[str, list[str]]) -> li
         bad = [c for c in r.join_cols if c not in cols]
         if bad:
             issues.append(f"规则 表 {r.table}: 列 {bad} 不存在")
+            continue
+        # 子对象的主键也必须出现在同一张表里,否则这条关系无法表达
+        child = child_by_name.get(r.child_type)
+        if child is not None:
+            missing = [c for c in child.id_cols if c not in cols]
+            if missing:
+                issues.append(f"规则 {r.child_type} → {r.parent_type}: "
+                              f"子对象主键 {missing} 不在表 {r.table} 中")
     names = {o.name for o in draft.objects}
     for r in draft.o2o_rules + draft.expansion_rules:
         if r.parent_type not in names:

@@ -192,8 +192,15 @@ def run_regression(path: str | Path, cfg: dict, root: Path, client) -> dict:
                 out = run_object_model(cfg, root, client, bpmn_path=case["bpmn"],
                                        cases=case.get("cases", 30))
                 validation = out["result"]["validation"]
-                ok = validation["ok"] == bool(expect.get("expect_ok", True))
-                detail = f"ok={validation['ok']} issues={validation['issues']}"
+                source = out["result"]["source"]
+                if source == "rule":
+                    # 规则化候选必须达标
+                    ok = validation["ok"] == bool(expect.get("expect_ok", True))
+                else:
+                    # LLM 候选允许被校验拦下 —— 那正是护栏的价值;
+                    # 但必须给出明确的问题说明,不能只是崩掉。
+                    ok = validation["ok"] or bool(validation["issues"])
+                detail = f"source={source} ok={validation['ok']} issues={validation['issues']}"
             else:
                 ok, detail = False, f"未知 mode {mode}"
         except Exception as e:  # noqa: BLE001

@@ -210,6 +210,14 @@ def extract_o2o(tables: SimTables,
     for rule in registry.o2o_rules:
         child_spec = registry.spec(rule.child_type)
         t = tables.business[rule.table]
+        # 规则的语义是「子对象的主键出现在 rule.table 中」。若不是(例如把
+        # employee 挂到 purchase_requisition.requester 上),这条规则无法用
+        # 当前表结构表达 —— 跳过并告警,而不是让整个转换崩掉。
+        missing = [c for c in child_spec.id_cols if c not in t.columns]
+        if missing:
+            logger.warning("o2o 规则 %s -> %s 跳过:表 %s 缺少子对象主键列 %s",
+                           rule.child_type, rule.parent_type, rule.table, missing)
+            continue
         frames.append(pd.DataFrame({
             OID: _oid_of(t, child_spec.id_cols),
             OID2: _oid_of(t, rule.join_cols),

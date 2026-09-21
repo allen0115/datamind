@@ -157,7 +157,10 @@ class MiningFacts(BaseModel):
             tokens.extend(str(v) for v in row.values())
         for v in self.evidence.values():
             tokens.append(str(v))
-        return [t for t in tokens if t]
+        # 只保留"带字"的词。纯数字不能当词抹掉:否则 77(某个触发次数)
+        # 会把 13277(关联数)里的 77 删掉,剩 132 反被误判成编造数字。
+        # 纯数字本来就在 allowed_numbers 里,不需要靠抹词来豁免。
+        return [t for t in tokens if t and not t.isdigit()]
 
 
 def _iter_numbers(obj: Any):

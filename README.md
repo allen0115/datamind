@@ -241,12 +241,29 @@ pm4py 擅长计算与判定,LLM 擅长语义与假设。两者结合的唯一原
 ### 快速开始
 
 ```bash
-# 可选依赖(不装也能跑完整流水线,自动降级为规则化结论)
+# 1) 装模型 SDK(不装也能跑完整流水线,自动降级为规则化结论)
 uv sync --extra llm
-export DATAMIND_LLM_API_KEY=sk-xxx
 
-# 打开开关:config.yaml 中 llm.enabled: true
+# 2) 配置模型:复制模板填 key(.env 已被 .gitignore 排除)
+cp .env.example .env
+#   默认给的是 DeepSeek:
+#     DATAMIND_LLM_MODEL=deepseek-flash
+#     DATAMIND_LLM_BASE_URL=https://api.deepseek.com
 ```
+
+DeepSeek 用 OpenAI 兼容协议,官方参数:
+
+| 参数 | 值 |
+|---|---|
+| `base_url`(OpenAI SDK) | `https://api.deepseek.com` |
+| `base_url`(Anthropic) | `https://api.deepseek.com/anthropic` |
+| `model` | `deepseek-flash`(推荐)/ `deepseek-v4-pro` |
+
+> 旧模型名 `deepseek-v4-flash`、`deepseek-v4-flash-vision-exp` 仍可调用,
+> 但对应模型已下线,实际由 DeepSeek-V4.1-Flash 提供服务并按 Flash 价格计费。
+
+配置优先级:**环境变量(.env) > config.yaml > 默认值**,换模型不用改配置文件。
+想换通义 / 本地 vLLM 等 OpenAI 兼容服务,只改 .env 里的三行即可(模板里已给出示例)。
 
 ```bash
 # L0 结果解读:把统计结果翻译成业务语言
@@ -288,6 +305,24 @@ export DATAMIND_LLM_API_KEY=sk-xxx
 - 变体按**分层采样**(高频取代表 + 低频异常优先保留),不是截断 Top-N
 - `temperature=0` + 磁盘缓存,缓存 key 含 `template_version`,改 prompt 不递增版本不会误命中旧缓存
 - 审计写 `outputs/llm_audit.jsonl`,**只记元信息不记 prompt 原文**
+
+### 真实模型验证
+
+```bash
+# 离线测试(默认,不打模型、不花钱)
+.venv/bin/python -m pytest -q            # 118 passed, 2 deselected
+
+# 真实模型 e2e(需要 .env 里是可用的 key)
+.venv/bin/python -m pytest -m e2e -s
+```
+
+e2e 断言的不是"模型说了什么",而是两件硬的事:
+1. 真实返回能被 pydantic schema 接住
+2. 结论里的每个数字都能溯源到 pm4py 的 facts(编造就失败)
+
+`tests/test_llm_openai_provider.py` 另外用一个假的 openai 模块替身,
+把"真实调用"链路里除最后一跳 HTTP 之外的部分全部验证过(prompt 组装、
+`response_format=json_object`、`temperature=0`、schema 失败重试、异常降级)。
 
 ### 离线行为
 

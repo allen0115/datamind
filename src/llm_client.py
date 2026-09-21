@@ -8,10 +8,14 @@
    改了 prompt 而不递增版本不会误命中旧缓存。
 3. **离线可跑**:未启用 / 缺 API key / 未装 SDK 一律走 NullProvider,
    调用方捕获 LLMUnavailableError 后转规则化降级。全部测试无需网络。
-4. **密钥不外泄**:API key 只读环境变量,不写 config.yaml、不进缓存、不进审计日志。
+4. **密钥不外泄**:API key 只读环境变量(可写在 .env 里),不写 config.yaml、
+   不进缓存、不进审计日志。
 
 schema 一律用 pydantic:类型强制、缺失字段、嵌套结构由它负责,
 本模块不再自己实现任何校验逻辑。
+
+配置优先级:**环境变量(.env) > config.yaml > 默认值**。
+这样切换模型(DeepSeek / 官方 OpenAI / 通义 / 本地 vLLM)不用改配置文件。
 """
 from __future__ import annotations
 
@@ -245,17 +249,61 @@ _DEFAULTS = {
     "max_variants": 8,
 }
 
+# 环境变量 → 配置项。优先级高于 config.yaml,便于用 .env 切换模型。
+_ENV_OVERRIDES: dict[str, tuple[str, type]] = {
+    "enabled": ("DATAMIND_LLM_ENABLED", bool),
+    "model": ("DATAMIND_LLM_MODEL", str),
+    "base_url": ("DATAMIND_LLM_BASE_URL", str),
+    "timeout_s": ("DATAMIND_LLM_TIMEOUT_S", float),
+    "max_retries": ("DATAMIND_LLM_MAX_RETRIES", int),
+}
 
-def llm_settings(cfg: dict | None) -> dict:
-    """合并默认值的 LLM 配置段。"""
+# 只加载一次;测试通过把它置 True 来屏蔽开发机上的 .env
+_DOTENV_LOADED = False
+
+
+def load_env_file(env_file: str | Path = ".env") -> bool:
+    """把 .env 载入 os.environ(不覆盖已有环境变量)。文件不存在时静默跳过。"""
+    global _DOTENV_LOADED
+    if _DOTENV_LOADED:
+        return False
+    _DOTENV_LOADED = True
+    try:
+        from dotenv import load_dotenv
+    except ImportError:  # pragma: no cover - 依赖缺失时只是不读 .env
+        logger.debug("未安装 python-dotenv,跳过 .env 加载")
+        return False
+    return load_dotenv(env_file, override=False)
+
+
+def _as_bool(raw: str) -> bool:
+    return raw.strip().lower() in ("1", "true", "yes", "on", "y")
+
+
+def llm_settings(cfg: dict | None, use_env: bool = True) -> dict:
+    """合并默认值的 LLM 配置段:默认值 → config.yaml → 环境变量。"""
+    if use_env:
+        load_env_file()
+
     out = dict(_DEFAULTS)
     out.update((cfg or {}).get("llm", {}) or {})
+
+    if use_env:
+        for key, (env_name, caster) in _ENV_OVERRIDES.items():
+            raw = os.environ.get(env_name)
+            if raw is None or raw.strip() == "":
+                continue
+            out[key] = _as_bool(raw) if caster is bool else caster(raw)
     return out
 
 
-def build_llm_client(cfg: dict | None, root: str | Path = ".") -> LLMClient:
-    """按 config.yaml 装配客户端。未启用一律返回 NullProvider 客户端。"""
-    s = llm_settings(cfg)
+def build_llm_client(cfg: dict | None, root: str | Path = ".",
+                     use_env: bool = True) -> LLMClient:
+    """按「默认值 → config.yaml → 环境变量(.env)」装配客户端。
+
+    未启用一律返回 NullProvider 客户端。
+    """
+    s = llm_settings(cfg, use_env=use_env)
     root = Path(root)
 
     if not s.get("enabled"):
@@ -271,6 +319,8 @@ def build_llm_client(cfg: dict | None, root: str | Path = ".") -> LLMClient:
             max_retries=int(s.get("max_retries", 1)),
         )
         cache_dir = root / str(s.get("cache_dir") or ".cache/llm")
+        logger.info("LLM 已启用: model=%s base_url=%s(密钥取自 %s)",
+                    provider.model, provider.base_url or "官方默认", provider.api_key_env)
 
     return LLMClient(
         provider=provider,
